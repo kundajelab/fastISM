@@ -1,4 +1,4 @@
-from ism_base import ISMBase
+from ism_base import ISMBase, NaiveISM
 from fast_ism_utils import generate_models
 
 import tensorflow as tf
@@ -6,8 +6,10 @@ import numpy as np
 
 
 class FastISM(ISMBase):
-    def __init__(self, model, seqlen, num_chars=4, seq_input_idx=0, change_ranges=None, replace_with=0):
+    def __init__(self, model, seqlen, num_chars=4, seq_input_idx=0, change_ranges=None, replace_with=0, test_correctness=True):
+        self.model = model
         self.seqlen = seqlen
+        self.num_chars = num_chars
         self.seq_input_idx = seq_input_idx  # TODO: ignored now, use for multi-input
         # TODO: ignored now, use for non-zero replacements
         self.replace_with = replace_with
@@ -31,10 +33,11 @@ class FastISM(ISMBase):
                 model, seqlen, num_chars, seq_input_idx, change_ranges)
         self.intout_output_tensor_to_idx = {
             x: i for i, x in enumerate(self.intout_output_tensors)}
-
-        if not self.verify_and_benchmark():
-            # ??
-            exit(1)
+        
+        if test_correctness:
+            if not self.test_correctness():
+                # ??
+                exit(1)
 
     def __call__(self, seq_batch):
         # run intermediate output on unperturbed sequence
@@ -104,11 +107,28 @@ class FastISM(ISMBase):
 
         return inputs
 
-    def verify_and_benchmark(self):
+    def test_correctness(self, batch_size=10, atol=1e-6):
         """
-        Verify that outputs are correct by matching with Naive ISM. Also compare
-        runtime against Naive ISM implementation.
+        Verify that outputs are correct by matching with Naive ISM. Running on small
+        examples so as to not take too long. 
+        
+        Hence not comparing runtime against Naive ISM implementation, which requires
+        bigger inputs to offset overheads.
 
-        TODO: ensure generated data is on GPU already before calling either method
+        TODO: ensure generated data is on GPU already before calling either method (for speedup)
         """
-        return True
+        
+        # TODO: better way to do this?
+        naive_ism = NaiveISM(self.model, self.seqlen, self.num_chars, self.seq_input_idx, 
+                             self.change_ranges, self.replace_with)
+        
+        # test batch
+        x = tf.constant(np.random.random((batch_size, self.seqlen, self.num_chars)))
+        
+        naive_out = naive_ism(x)
+        fast_out = self(x)
+        
+        return np.all(np.isclose(naive_out, fast_out, atol=atol))
+    
+    def time_batch(self, seq_batch):
+        pass
