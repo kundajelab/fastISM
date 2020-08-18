@@ -1,5 +1,5 @@
-from .ism_base import ISMBase
-from .fast_ism_utils import generate_models
+from ism_base import ISMBase
+from fast_ism_utils import generate_models
 
 import tensorflow as tf
 import numpy as np
@@ -38,7 +38,7 @@ class FastISM(ISMBase):
 
     def __call__(self, seq_batch):
         # run intermediate output on unperturbed sequence
-        intpout_output = self.intermediate_output_model(seq_batch)
+        intout_output = self.intermediate_output_model(seq_batch)
         padded_inputs = self.prepare_intout_output(
             intout_output, seq_batch.shape[0])  # better name than padded?
 

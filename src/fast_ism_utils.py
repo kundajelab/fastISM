@@ -1,9 +1,9 @@
 import tensorflow as tf
-from . import flatten_model
+import flatten_model
 from collections import defaultdict
 from copy import deepcopy
 
-from .change_range import ChangeRangesBase, Conv1DChangeRanges, MaxPooling1DChangeRanges
+from change_range import ChangeRangesBase, Conv1DChangeRanges, MaxPooling1DChangeRanges
 
 # List of layers supported by fastISM. [UNUSED CURRENTLY]
 SUPPORTED_LAYERS = {
