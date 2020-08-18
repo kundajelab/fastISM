@@ -1,6 +1,5 @@
-from fast_ism_validate_model import validate_model
-from ism_base import ISMBase
-from fast_ism_utils import generate_models
+from .ism_base import ISMBase
+from .fast_ism_utils import generate_models
 
 import tensorflow as tf
 import numpy as np
