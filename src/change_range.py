@@ -120,7 +120,7 @@ class Conv1DChangeRanges(ChangeRangesBase):
 
     def forward(self, input_seqlen, input_change_ranges):
         # NB: returned input_range_corrected, offsets are wrt padded input
-        assert(all([(0 <= x < input_seqlen and 0 <= y < input_seqlen and y > x)
+        assert(all([(0 <= x < input_seqlen and 0 < y <= input_seqlen and y > x)
                     for x, y in input_change_ranges]))
         seqlen_with_padding=input_seqlen + sum(self.padding_num)
 
@@ -166,7 +166,7 @@ class Conv1DChangeRanges(ChangeRangesBase):
         # offsets for each input_change_ranges wrt input_range_corrected
         offsets=[x+self.padding_num[0]-input_range_corrected[i][0]
                    for i, (x, _) in enumerate(input_change_ranges)]
-
+        
         return input_range_corrected, self.padding_num, offsets, outseqlen, output_affected_ranges
 
     def backward(self, output_select_ranges):
@@ -211,13 +211,16 @@ class MaxPooling1DChangeRanges(ChangeRangesBase):
         # sizes can change, calculate maxwidth and set all to same
         maxwidth=max([y-x for x, y in input_change_range_shifted])
 
-        # set to same length
-        # NOTE: the below code ignores the last block when seqlen is not a multiple
-        # of pool_size. This works only when padding == 'valid' and strides==pool_size.
-        input_range_corrected=[(x, x+maxwidth) if x+maxwidth <= input_seqlen
+        # set to same length        
+        input_range_corrected=[(x, x+maxwidth) if y <= input_seqlen
                                  else (y-maxwidth, y)
                                  for x, y in input_change_range_shifted]
-
+        # NOTE: the below code ignores the last block when seqlen is not a multiple
+        # of pool_size. This works only when padding == 'valid' and strides==pool_size.
+        input_range_corrected = [(x,y) if y<=input_seqlen else 
+                                 (x-self.pool_size,y-self.pool_size) for x,y in input_range_corrected] 
+        assert([y<=input_seqlen for _,y in input_range_corrected])
+        
         # corrected change ranges must include input_change_ranges
         assert([x_c <= x and y_c >= y for (x, y), (x_c, y_c) in zip(
             input_change_ranges, input_range_corrected)])
@@ -232,7 +235,8 @@ class MaxPooling1DChangeRanges(ChangeRangesBase):
         # offsets for each input_change_ranges wrt input_range_corrected
         offsets=[x-input_range_corrected[i][0]
                    for i, (x, _) in enumerate(input_change_ranges)]
-
+        
+        
         # (0,0) for no padding -- this would change if padding="same" is allowed
         return input_range_corrected, (0, 0), offsets, outseqlen, output_affected_ranges
 
