@@ -1,5 +1,5 @@
-from ism_base import ISMBase, NaiveISM
-from fast_ism_utils import generate_models
+from .ism_base import ISMBase, NaiveISM
+from .fast_ism_utils import generate_models
 
 import tensorflow as tf
 import numpy as np
