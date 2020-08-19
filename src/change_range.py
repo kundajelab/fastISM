@@ -97,10 +97,10 @@ class Conv1DChangeRanges(ChangeRangesBase):
 
         # assuming "same" if not "valid" (checked in validate_config)
         # if valid and effective size is even then keras will pad with more zeros
-        # on the left
+        # on the right (used to be left before)
         self.padding_num=(0, 0) if config['padding'] == 'valid' else \
-            (ceil((self.effective_kernel_size-1)/2),
-             floor((self.effective_kernel_size-1)/2))
+            (floor((self.effective_kernel_size-1)/2),
+             ceil((self.effective_kernel_size-1)/2))
 
     def validate_config(self):
         if self.config['data_format'] != "channels_last":
