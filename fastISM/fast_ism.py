@@ -20,7 +20,7 @@ class FastISM(ISMBase):
             if not self.test_correctness():
                 raise ValueError("Fast ISM model built is incorrect, likely \
                                  due to internal error. Please post an Issue \
-                                      with your architecture.")                
+                                      with your architecture.")
 
     def __call__(self, seq_batch):
         # run intermediate output on unperturbed sequence
@@ -28,16 +28,30 @@ class FastISM(ISMBase):
         padded_inputs = self.prepare_intout_output(
             intout_output, seq_batch.shape[0])  # better name than padded?
 
-        ism_outputs = []
+        if self.num_outputs == 1:
+            ism_outputs = []
+        else:
+            ism_outputs = [[] for _ in range(self.num_outputs)]
+
         for i in range(len(self.change_ranges)):
             fast_ism_inputs = self.prepare_ith_input(padded_inputs, i)
 
-            # TODO: what if multiple outputs
-            ism_output = self.fast_ism_model(fast_ism_inputs).numpy()
-            ism_outputs.append(ism_output)
+            ism_output = self.fast_ism_model(fast_ism_inputs)
+
+            # DRY
+            if self.num_outputs == 1:
+                ism_outputs.append(ism_output.numpy())
+            else:
+                [ism_outputs[j].append(ism_output[j].numpy()) for
+                    j in range(self.num_outputs)]
 
         # seq x num_mut x output_dim
-        ism_outputs = np.swapaxes(np.array(ism_outputs), 0, 1)
+        # DRY
+        if self.num_outputs == 1:
+            ism_outputs = np.swapaxes(np.array(ism_outputs), 0, 1)
+        else:
+            ism_outputs = [np.swapaxes(np.array(x), 0, 1) for x in ism_outputs]
+
         return ism_outputs
 
     def prepare_intout_output(self, intout_output, num_seqs):
@@ -112,7 +126,10 @@ class FastISM(ISMBase):
         naive_out = naive_ism(x)
         fast_out = self(x)
 
-        return np.all(np.isclose(naive_out, fast_out, atol=atol))
+        if self.num_outputs == 1:
+            return np.all(np.isclose(naive_out, fast_out, atol=atol))
+        else:
+            return all([np.all(np.isclose(naive_out[j], fast_out[j], atol=atol)) for j in range(self.num_outputs)])
 
     def time_batch(self, seq_batch):
         pass
