@@ -138,8 +138,8 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges, node_to_segment,
         elif layer_class in STOP_LAYERS:
             # mark end of current segment
             segment_idx += 1
-            # recursively label all descendants as "COMPLETELY_AFFECTED"
-            return label_completely_affected(current_node, nodes, edges, node_to_segment), segment_idx
+            # recursively label all descendants (no more further segments)
+            return label_descendants(current_node, nodes, edges, node_to_segment, segment_idx), segment_idx+1
 
         elif layer_class == 'Conv1D':
             # enforce that if a segment has a conv layer, it is always at the beginning
@@ -185,12 +185,12 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges, node_to_segment,
             return node_to_segment, segment_idx
 
 
-def label_completely_affected(current_node, nodes, edges, node_to_segment):
-    node_to_segment[current_node] = "COMPLETELY_AFFECTED"
+def label_descendants(current_node, nodes, edges, node_to_segment, segment_idx):
+    node_to_segment[current_node] = segment_idx
 
     for node in edges[current_node]:
-        node_to_segment = label_completely_affected(
-            node, nodes, edges, node_to_segment)
+        node_to_segment = label_descendants(
+            node, nodes, edges, node_to_segment, segment_idx)
 
     return node_to_segment
 
@@ -220,7 +220,6 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
     # this will store outputs of ChangeRangesBase.forward_compose
     # as well as number of filters in output
     # it's a map from segment -> output
-    # however if segment is COMPLETELY_AFFECTED, the key is the node
     segments = dict()
 
     # a segment can have multiple input_seqlens if it's a layer with multiple
@@ -243,11 +242,15 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
 
         if len(segments_to_process_input_seqlens[cur_segment_to_process]) != \
                 len(inbound_edges[cur_segment_tensor]):
+            print(cur_segment_to_process, cur_segment_tensor)
+            print(
+                len(segments_to_process_input_seqlens[cur_segment_to_process]))
+            print(len(inbound_edges[cur_segment_tensor]))
             # hold off and wait till other input segments are populated
             assert(len(segments_to_process) > 1)
 
-        # if node marks beginning of dense layers, say
-        elif cur_segment_to_process == "COMPLETELY_AFFECTED":
+        # if node marks beginning of dense/flatten/reshape layers, say
+        elif nodes[cur_segment_tensor].__class__.__name__ in STOP_LAYERS:
             if len(segments_to_process_input_seqlens[cur_segment_to_process]) > 1:
                 raise NotImplementedError("This Block layer takes in multiple \
                      inputs which is not currently supported")
@@ -267,7 +270,7 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                                           None,  # output seqlen NA
                                           None)  # affected range is the whole thing, NA)
             segment.update_num_filters(None)  # output filters NA
-            segments[cur_segment_tensor] = segment
+            segments[cur_segment_to_process] = segment
 
         # process current segment
         else:
@@ -313,7 +316,8 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                             change_range_objects.append(MaxPooling1DChangeRanges(
                                 nodes[cur_segment_tensor].get_config()))
                     elif layer_name not in SEE_THROUGH_LAYERS:
-                        raise not_supported_error("Layer {}".format(layer_name))
+                        raise not_supported_error(
+                            "Layer {}".format(layer_name))
 
                 if len(edges[cur_segment_tensor]) != 1 or \
                         node_to_segment[edges[cur_segment_tensor][0]] != cur_segment_to_process:
@@ -500,7 +504,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
     # if exists already, don't recompute
     # TODO: re-check this code
     if (parent_layer, current_node) in node_edge_to_tensor:
-        return node_edge_to_tensor, input_specs
+        return node_edge_to_tensor, input_tensors, input_specs
 
     if len(edges[parent_layer]) > 1:
         raise NotImplementedError(
@@ -574,11 +578,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
         if node_to_segment[current_node] != node_to_segment[next_layer_node]:
             cur_segment = segments[node_to_segment[current_node]]
 
-            if node_to_segment[next_layer_node] == "COMPLETELY_AFFECTED":
-                next_segment = segments[next_layer_node]
-            else:
-                next_segment = segments[
-                    node_to_segment[next_layer_node]]
+            next_segment = segments[node_to_segment[next_layer_node]]
 
             next_segment_in_width = next_segment.input_unperturbed_width()
             cur_segment_out_filters = cur_segment.num_out_filters
@@ -642,7 +642,7 @@ def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
     node_to_segment = segment_model(model, nodes, edges, inbound_edges)
 
     # for each segment, compute metadata used for stitching together outputs
-    # dict: segment_idx (node tensor in case of COMPLETELY_AFFECTED) -> GraphSegment object
+    # dict: segment_idx -> GraphSegment object
     segments = compute_segment_change_ranges(model, nodes, edges, inbound_edges, node_to_segment,
                                              seqlen, num_chars, change_ranges)
 
