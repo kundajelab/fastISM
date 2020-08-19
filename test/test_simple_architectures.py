@@ -13,7 +13,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -25,7 +25,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -37,7 +37,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -49,7 +49,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -61,7 +61,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -74,7 +74,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -88,7 +88,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -103,7 +103,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 100, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -123,7 +123,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 200, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -145,7 +145,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 200, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -167,7 +167,7 @@ class TestSimpleArchitectures(unittest.TestCase):
         model = tf.keras.Model(inputs=inp, outputs=x)
 
         fast_ism_model = fastISM.FastISM(
-            model, 200, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 

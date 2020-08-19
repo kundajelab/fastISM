@@ -6,38 +6,21 @@ import numpy as np
 
 
 class FastISM(ISMBase):
-    def __init__(self, model, seqlen, num_chars=4, seq_input_idx=0, change_ranges=None, replace_with=0, test_correctness=True):
-        self.model = model
-        self.seqlen = seqlen
-        self.num_chars = num_chars
-        self.seq_input_idx = seq_input_idx  # TODO: ignored now, use for multi-input
-        # TODO: ignored now, use for non-zero replacements
-        self.replace_with = replace_with
-
-        if change_ranges is None:
-            # default would be mutations at each position, 1 bp wide
-            change_ranges = [(i, i+1) for i in range(seqlen)]
-        # unify "change_ranges", "affected_ranges", "perturned_ranges"
-        self.change_ranges = change_ranges
-
-        # only one input width allowed (currently)
-        assert(len(set([x[1]-x[0] for x in change_ranges])) == 1)
-        perturb_width = change_ranges[0][1] - change_ranges[0][0]
-
-        # TODO: incorporate replace_with
-        self.perturbation = tf.constant(
-            np.zeros((1, perturb_width, num_chars)))
+    def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0, test_correctness=True):
+        super().__init__(model, seq_input_idx, change_ranges, replace_with)
 
         self.intermediate_output_model, self.intout_output_tensors, \
             self.fast_ism_model, self.input_specs = generate_models(
-                model, seqlen, num_chars, seq_input_idx, change_ranges)
+                self.model, self.seqlen, self.num_chars, self.seq_input_idx, self.change_ranges)
+
         self.intout_output_tensor_to_idx = {
             x: i for i, x in enumerate(self.intout_output_tensors)}
-        
+
         if test_correctness:
             if not self.test_correctness():
-                # ??
-                exit(1)
+                raise ValueError("Fast ISM model built is incorrect, likely \
+                                 due to internal error. Please post an Issue \
+                                      with your architecture.")                
 
     def __call__(self, seq_batch):
         # run intermediate output on unperturbed sequence
@@ -111,24 +94,25 @@ class FastISM(ISMBase):
         """
         Verify that outputs are correct by matching with Naive ISM. Running on small
         examples so as to not take too long. 
-        
+
         Hence not comparing runtime against Naive ISM implementation, which requires
         bigger inputs to offset overheads.
 
         TODO: ensure generated data is on GPU already before calling either method (for speedup)
         """
-        
+
         # TODO: better way to do this?
-        naive_ism = NaiveISM(self.model, self.seqlen, self.num_chars, self.seq_input_idx, 
+        naive_ism = NaiveISM(self.model, self.seq_input_idx,
                              self.change_ranges, self.replace_with)
-        
+
         # test batch
-        x = tf.constant(np.random.random((batch_size, self.seqlen, self.num_chars)))
-        
+        x = tf.constant(np.random.random(
+            (batch_size, self.seqlen, self.num_chars)))
+
         naive_out = naive_ism(x)
         fast_out = self(x)
-        
+
         return np.all(np.isclose(naive_out, fast_out, atol=atol))
-    
+
     def time_batch(self, seq_batch):
         pass

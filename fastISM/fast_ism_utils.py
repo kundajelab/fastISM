@@ -3,7 +3,7 @@ from . import flatten_model
 from collections import defaultdict
 from copy import deepcopy
 
-from .change_range import ChangeRangesBase, Conv1DChangeRanges, MaxPooling1DChangeRanges
+from .change_range import ChangeRangesBase, Conv1DChangeRanges, MaxPooling1DChangeRanges, not_supported_error
 
 # List of layers supported by fastISM. [UNUSED CURRENTLY]
 SUPPORTED_LAYERS = {
@@ -313,7 +313,7 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                             change_range_objects.append(MaxPooling1DChangeRanges(
                                 nodes[cur_segment_tensor].get_config()))
                     elif layer_name not in SEE_THROUGH_LAYERS:
-                        assert(False)
+                        raise not_supported_error("Layer {}".format(layer_name))
 
                 if len(edges[cur_segment_tensor]) != 1 or \
                         node_to_segment[edges[cur_segment_tensor][0]] != cur_segment_to_process:

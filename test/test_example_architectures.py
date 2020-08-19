@@ -11,7 +11,7 @@ class TestExampleArchitectures(unittest.TestCase):
         model = basset_model(seqlen=200)
 
         fast_ism_model = fastISM.FastISM(
-            model, 200, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -19,7 +19,7 @@ class TestExampleArchitectures(unittest.TestCase):
         model = basset_model(seqlen=500)
 
         fast_ism_model = fastISM.FastISM(
-            model, 500, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -27,7 +27,7 @@ class TestExampleArchitectures(unittest.TestCase):
         model = factorized_basset_model(seqlen=200)
 
         fast_ism_model = fastISM.FastISM(
-            model, 200, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 
@@ -35,7 +35,7 @@ class TestExampleArchitectures(unittest.TestCase):
         model = factorized_basset_model(seqlen=500)
 
         fast_ism_model = fastISM.FastISM(
-            model, 500, 4, test_correctness=False)
+            model, test_correctness=False)
 
         self.assertTrue(fast_ism_model.test_correctness())
 

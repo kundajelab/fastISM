@@ -2,34 +2,38 @@ import tensorflow as tf
 import numpy as np
 
 class ISMBase():
-    def __init__(self, model, seq_input_idx=0, change_ranges=0, replace_with=0):
+    def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0):
         # check if model is supported by current implementation
-        pass
-
-    def __call__(self, seq_batch):
-        pass
-
-class NaiveISM(ISMBase):
-    def __init__(self, model, seqlen, num_chars=4,  seq_input_idx=0, change_ranges=None, replace_with=0):
         self.model = model
-        self.seqlen = seqlen
-        self.seq_input_idx = seq_input_idx  # TODO: ignored now, use for multi-input
+
+        self.seq_input_idx = seq_input_idx  # TODO: use further for multi-input
+        seq_input = self.model.inputs[seq_input_idx]
+        self.seqlen = seq_input.shape[1]
+        self.num_chars = seq_input.shape[2]
+
         # TODO: ignored now, use for non-zero replacements
         self.replace_with = replace_with
-        
+
         if change_ranges is None:
             # default would be mutations at each position, 1 bp wide
-            change_ranges = [(i, i+1) for i in range(seqlen)]
+            change_ranges = [(i, i+1) for i in range(self.seqlen)]
         # unify "change_ranges", "affected_ranges", "perturned_ranges"
         self.change_ranges = change_ranges
-        
+
         # only one input width allowed (currently)
         assert(len(set([x[1]-x[0] for x in change_ranges])) == 1)
         perturb_width = change_ranges[0][1] - change_ranges[0][0]
 
         # TODO: incorporate replace_with
         self.perturbation = tf.constant(
-            np.zeros((1, perturb_width, num_chars)))
+            np.zeros((1, perturb_width, self.num_chars)))
+
+    def __call__(self, seq_batch):
+        pass
+
+class NaiveISM(ISMBase):
+    def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0):
+        super().__init__(model, seq_input_idx, change_ranges, replace_with)
     
     def __call__(self, seq_batch):
         ism_outputs = []
