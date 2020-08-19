@@ -5,23 +5,15 @@ from copy import deepcopy
 
 from .change_range import ChangeRangesBase, Conv1DChangeRanges, MaxPooling1DChangeRanges, not_supported_error
 
-# List of layers supported by fastISM. [UNUSED CURRENTLY]
-SUPPORTED_LAYERS = {
-    'InputLayer',
-    'Conv1D',
-    'MaxPooling1D',
-    'Reshape',
-    'Dense',
-    'Flatten',
-    'BatchNormalization',
-    'Activation',
-    'ReLU'
-}
+# Union of layers below gives all supported layers.
 
 # layers at which output at ith position depends on input at ith position only
 SEE_THROUGH_LAYERS = {
-    'InputLayer',  # should this even be here?
+    'InputLayer',  # TODO: should this even be here?
     'Activation',
+    'ELU',
+    'LeakyReLU',
+    'PReLU',
     'ReLU',
     'BatchNormalization'
 }

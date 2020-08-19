@@ -63,17 +63,7 @@ class FastISM(ISMBase):
             elif input_spec[0] == "INTOUT":
                 # pad the output if required
                 to_pad = intout_output[self.intout_output_tensor_to_idx[input_spec[1]['node']]]
-                num_filts = to_pad.shape[2]
-
-                padded = tf.concat([
-                    # left zeros
-                    tf.zeros(
-                        (num_seqs, input_spec[1]['padding'][0], num_filts)),
-                    to_pad,
-                    # right zeros
-                    tf.zeros(
-                        (num_seqs, input_spec[1]['padding'][1], num_filts)),
-                ], axis=1)
+                padded = tf.keras.layers.ZeroPadding1D(input_spec[1]['padding'])(to_pad)
                 inputs.append(padded)
 
             elif input_spec[0] == "OFFSET":
