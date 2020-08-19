@@ -4,7 +4,7 @@ import unittest
 from context import fastISM
 
 
-class TestSimpleArchitectures(unittest.TestCase):
+class TestSimpleSingleInSingleOutArchitectures(unittest.TestCase):
     def test_conv_fc(self):
         inp = tf.keras.Input((100, 4))
         x = tf.keras.layers.Conv1D(20, 3)(inp)
