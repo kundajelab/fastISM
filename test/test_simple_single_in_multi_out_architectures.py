@@ -96,6 +96,57 @@ class TestSimpleSingleInMultiOutArchitectures(unittest.TestCase):
 
         self.assertTrue(fast_ism_model.test_correctness())
 
+    def test_input_split_conv_fc(self):
+        #    /- C -> D -> y1
+        # inp
+        #    \_ C -> D -> y2
+        inp = tf.keras.Input((100, 4))
+        x1 = tf.keras.layers.Conv1D(20, 3)(inp)
+        x2 = tf.keras.layers.Conv1D(10, 4)(inp)
+        x1f = tf.keras.layers.Flatten()(x1)
+        x2f = tf.keras.layers.Flatten()(x2)
+        y1 = tf.keras.layers.Dense(1)(x1f)
+        y2 = tf.keras.layers.Dense(1)(x2f)
+        model = tf.keras.Model(inputs=inp, outputs=[y1, y2])
+
+        fast_ism_model = fastISM.FastISM(
+            model, test_correctness=False)
+
+        self.assertTrue(fast_ism_model.test_correctness())
+
+    def test_input_split_complex(self):
+        #    /- C -> MXP -> C -> MXP -> D -> y1
+        # inp          \_ C -> MXP -> D -> D -> y2
+        #    \_ C -> MXP -> D -> y3
+        inp = tf.keras.Input((100, 4))
+
+        # first row
+        x1 = tf.keras.layers.Conv1D(20, 3, dilation_rate=2)(inp)
+        x1 = tf.keras.layers.MaxPooling1D(2)(x1)
+        x11 = tf.keras.layers.Conv1D(20, 3, dilation_rate=3)(x1)
+        x11 = tf.keras.layers.MaxPooling1D(2)(x11)
+        x11f = tf.keras.layers.Flatten()(x11)
+        y1 = tf.keras.layers.Dense(5)(x11f)
+        
+        # second row
+        x12 = tf.keras.layers.Conv1D(15, 2, padding='same', activation='relu')(x1)
+        x12 = tf.keras.layers.MaxPooling1D(2)(x12)
+        x12f = tf.keras.layers.Flatten()(x12)
+        y2 = tf.keras.layers.Dense(5)(x12f)
+        y2 = tf.keras.layers.Dense(2, activation='tanh')(y2)
+        
+        # third row
+        x2 = tf.keras.layers.Conv1D(10, 4, padding='same')(inp)
+        x2 = tf.keras.layers.MaxPool1D(3)(x2)
+        x2f = tf.keras.layers.Flatten()(x2)
+        y3 = tf.keras.layers.Dense(1)(x2f)
+
+        model = tf.keras.Model(inputs=inp, outputs=[y1, y2, y3])
+
+        fast_ism_model = fastISM.FastISM(
+            model, test_correctness=False)
+
+        self.assertTrue(fast_ism_model.test_correctness())
 
 if __name__ == '__main__':
     unittest.main()
