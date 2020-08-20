@@ -45,6 +45,7 @@ STOP_LAYERS = {
     'Flatten',
     'Reshape',
     'GlobalAveragePooling1D',
+    'GlobalMaxPool1D',
     'Dense'
 }
 
