@@ -55,7 +55,7 @@ class NaiveISM(ISMBase):
                 seq_batch[:, self.change_ranges[i][1]:],
             ], axis=1)
 
-            ism_output = self.model(ism_input)
+            ism_output = self.model(ism_input, training=False)
 
             # DRY
             if self.num_outputs == 1:

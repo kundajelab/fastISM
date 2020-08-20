@@ -25,7 +25,7 @@ class FastISM(ISMBase):
 
     def __call__(self, seq_batch):
         # run intermediate output on unperturbed sequence
-        intout_output = self.intermediate_output_model(seq_batch)
+        intout_output = self.intermediate_output_model(seq_batch, training=False)
         padded_inputs = self.prepare_intout_output(
             intout_output, seq_batch.shape[0])  # better name than padded?
 
@@ -37,7 +37,7 @@ class FastISM(ISMBase):
         for i in range(len(self.change_ranges)):
             fast_ism_inputs = self.prepare_ith_input(padded_inputs, i)
 
-            ism_output = self.fast_ism_model(fast_ism_inputs)
+            ism_output = self.fast_ism_model(fast_ism_inputs, training=False)
 
             # DRY
             if self.num_outputs == 1:
