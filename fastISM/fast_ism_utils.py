@@ -18,6 +18,19 @@ SEE_THROUGH_LAYERS = {
     'BatchNormalization'
 }
 
+# layers which take in >1 inputs of the same shape and output has the same shape
+# essentially similar SEE_THROUGH_LAYER but mentioned separately since there is
+# additional bookkeeping when a layer has >1 inputs. Nonetheless this category is
+# not used in any special way (yet)
+AGGREGATE_LAYERS = {
+    'Add',
+    'Maximum',
+    'Minumum',
+    'Subtract',
+    'Multiply',
+    'Average'
+}
+
 # layers at which output at ith position depends on a window around the ith position
 LOCAL_LAYERS = {
     'Conv1D',
@@ -36,20 +49,30 @@ STOP_LAYERS = {
 
 class SliceAssign(tf.keras.layers.Layer):
     # TODO: make it work along any axis
-    def __init__(self, b_dim):
+    def __init__(self, a_dim, b_dim):
         super(SliceAssign, self).__init__()
 
+        self.a_dim = a_dim
+
         # after one slice assign, tf can't calculate dimension
-        # since i is not known. So manually specify b_dim
+        # since i is not known. So manually specify b_dim 
         self.b_dim = b_dim
 
     def call(self, inputs):
-        # GOAL: a[:,i:i+b.shape[1]] = b
+        # GOAL: a[:,i:min(i+b.shape[1], a.shape[1])] = b
+        # clip b if i+b.shape[1] exceeds width of a, guarantee width of output 
+        # is same as a. This could happen when a layer's output (b) feeds into
+        # multiple layers, but some layers don't need all positions of b 
+        # (can happen near the edges).
+        # See test_skip_then_mxp of test/test_simple_skip_conn_architectures.py
 
         a, b, i = inputs
 
         # output will lose shape info (dim 1 will be set to None)
-        return tf.concat([a[:, :i[0]], b, a[:, i[0]+self.b_dim:]], axis=1)
+        return tf.cond(i[0]+self.b_dim <= self.a_dim,
+                       lambda: tf.concat(
+                           [a[:, :i[0]], b, a[:, i[0]+self.b_dim:]], axis=1),
+                       lambda: tf.concat([a[:, :i[0]], b[:, :self.a_dim-i[0]]], axis=1))
 
 
 class GraphSegment():
@@ -62,16 +85,14 @@ class GraphSegment():
         self.input_unperturbed_slices = None
         self.input_unperturbed_padding = None
         self.num_out_filters = None
-        self.perturbed_offsets = None
         self.output_seqlen = None
         self.output_perturbed_ranges = None
 
     def update_forward_output(self, input_unperturbed_slices,
-                              input_unperturbed_padding, perturbed_offsets,
-                              output_seqlen, output_perturbed_ranges):
+                              input_unperturbed_padding, output_seqlen,
+                              output_perturbed_ranges):
         self.input_unperturbed_slices = input_unperturbed_slices
         self.input_unperturbed_padding = input_unperturbed_padding
-        self.perturbed_offsets = perturbed_offsets
         self.output_seqlen = output_seqlen
         self.output_perturbed_ranges = output_perturbed_ranges
 
@@ -234,12 +255,11 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
 
         if len(segments_to_process_input_seqlens[cur_segment_to_process]) != \
                 len(inbound_edges[cur_segment_tensor]):
-            print(cur_segment_to_process, cur_segment_tensor)
-            print(
-                len(segments_to_process_input_seqlens[cur_segment_to_process]))
-            print(len(inbound_edges[cur_segment_tensor]))
+            # should not be greater in any case
+            assert(len(segments_to_process_input_seqlens[cur_segment_to_process]) <
+                   len(inbound_edges[cur_segment_tensor]))
             # hold off and wait till other input segments are populated
-            assert(len(segments_to_process) > 1)
+            assert(len(segments_to_process) > 0)
 
         # if node marks beginning of dense/flatten/reshape layers, say
         elif nodes[cur_segment_tensor].__class__.__name__ in STOP_LAYERS:
@@ -256,9 +276,6 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                                           # entire input range
                                           len(cur_input_change_ranges),
                                           (0, 0),  # no padding
-                                          # offsets
-                                          [x[0] for x \
-                                           in cur_input_change_ranges],
                                           None,  # output seqlen NA
                                           None)  # affected range is the whole thing, NA)
             segment.update_num_filters(None)  # output filters NA
@@ -307,9 +324,10 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                         elif layer_name == 'MaxPooling1D':
                             change_range_objects.append(MaxPooling1DChangeRanges(
                                 nodes[cur_segment_tensor].get_config()))
-                    elif layer_name not in SEE_THROUGH_LAYERS:
+                    elif (layer_name not in SEE_THROUGH_LAYERS) and \
+                            (layer_name not in AGGREGATE_LAYERS):
                         raise not_supported_error(
-                            "Layer {}".format(layer_name))
+                            "Layer \"{}\"".format(layer_name))
 
                 if len(edges[cur_segment_tensor]) != 1 or \
                         node_to_segment[edges[cur_segment_tensor][0]] != cur_segment_to_process:
@@ -327,7 +345,12 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                     for node in edges[cur_segment_tensor]:
                         # add start nodes to segments_to_process
                         next_segment = node_to_segment[node]
-                        segments_to_process.append((next_segment, node))
+
+                        # do not add if already present
+                        if (next_segment, node) not in segments_to_process:
+                            segments_to_process.append((next_segment, node))
+
+                        # but add this info
                         segments_to_process_input_seqlens[next_segment].append(
                             segment.output_seqlen)
                         segments_to_process_input_filters[next_segment].append(
@@ -598,18 +621,28 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
             offset_input = tf.keras.Input(batch_size=1, shape=(), dtype='int32',
                                           name=name)
 
-            # add info sufficient for preparing inputs
+            # compute offset by which the output of this layer would
+            # be placed on the unperturbed intermediate output
+            # need to adjust for padding as next_segment.input_unperturbed_slices
+            # are after padding, whereas cur_segment.output_perturbed_ranges
+            # are before padding
+            left_pad = next_segment.input_unperturbed_padding[0]
+            offsets = [x+left_pad-x_u for (x, _), (x_u, _) in
+                       zip(cur_segment.output_perturbed_ranges,
+                           next_segment.input_unperturbed_slices)]
+
             input_tensors.append(offset_input)
             input_specs.append(("OFFSET", {
-                "offsets": next_segment.perturbed_offsets
+                "offsets": offsets
             }))
 
             # slice assignment layer
-            layer = SliceAssign(cur_segment_out_width)
-            node_edge_to_tensor[(current_node, next_layer_node)] = layer([unperturbed_intout_input,
-                                                                          node_edge_to_tensor[(
-                                                                              parent_layer, current_node)],
-                                                                          offset_input])
+            layer = SliceAssign(next_segment_in_width, cur_segment_out_width)
+            node_edge_to_tensor[(current_node,
+                                 next_layer_node)] = layer([unperturbed_intout_input,
+                                                            node_edge_to_tensor[(
+                                                                parent_layer, current_node)],
+                                                            offset_input])
 
         else:
             # carry forward same tensor

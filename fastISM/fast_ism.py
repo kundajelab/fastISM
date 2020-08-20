@@ -18,9 +18,10 @@ class FastISM(ISMBase):
 
         if test_correctness:
             if not self.test_correctness():
-                raise ValueError("Fast ISM model built is incorrect, likely \
-                                 due to internal error. Please post an Issue \
-                                      with your architecture.")
+                raise ValueError("""Fast ISM model built is incorrect, likely 
+                                 due to internal errors. Please post an Issue 
+                                 with your architecture and the authors will
+                                 try their best to help you!""")
 
     def __call__(self, seq_batch):
         # run intermediate output on unperturbed sequence
