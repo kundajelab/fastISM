@@ -18,6 +18,20 @@ class TestSimpleSingleInSingleOutArchitectures(unittest.TestCase):
 
         self.assertTrue(fast_ism_model.test_correctness())
 
+    def test_conv_fc_sequential(self):
+        # inp -> C -> D -> y
+        # same as above but with Sequential
+        model = tf.keras.Sequential()
+        model.add(tf.keras.Input((100, 4)))
+        model.add(tf.keras.layers.Conv1D(20, 3))
+        model.add(tf.keras.layers.Flatten())
+        model.add(tf.keras.layers.Dense(1))        
+                
+        fast_ism_model = fastISM.FastISM(
+            model, test_correctness=False)
+
+        self.assertTrue(fast_ism_model.test_correctness())
+
     def test_conv_same_padding_fc(self):
         # inp -> C -> D -> y
         inp = tf.keras.Input((100, 4))
@@ -203,6 +217,34 @@ class TestSimpleSingleInSingleOutArchitectures(unittest.TestCase):
         x = tf.keras.layers.Dropout(0.3)(x)
         x = tf.keras.layers.Dense(1)(x)
         model = tf.keras.Model(inputs=inp, outputs=x)
+
+        fast_ism_model = fastISM.FastISM(
+            model, test_correctness=False)
+
+        self.assertTrue(fast_ism_model.test_correctness())
+
+    def test_four_conv_maxpool_two_fc_4_sequential(self):
+        # inp -> C -> MXP -> C -> MXP -> C -> MXP -> C -> MXP -> D -> D -> y
+        # with Dropout and GlobalAveragePoolng1D
+        # same as above but with Sequential
+        model = tf.keras.Sequential()
+        model.add(tf.keras.Input((200, 4)))
+        model.add(tf.keras.layers.Conv1D(10, 5, use_bias=False, padding='same'))
+        model.add(tf.keras.layers.MaxPooling1D(2))
+        model.add(tf.keras.layers.Conv1D(
+            25, 4, padding='same', activation='relu'))
+        model.add(tf.keras.layers.Dropout(0.5))
+        model.add(tf.keras.layers.MaxPooling1D(2))
+        model.add(tf.keras.layers.Conv1D(30, 2, dilation_rate=2, use_bias=False,
+                                   padding='valid', activation='tanh'))
+        model.add(tf.keras.layers.MaxPooling1D(2))
+        model.add(tf.keras.layers.Dropout(0.8))
+        model.add(tf.keras.layers.Conv1D(10, 3, padding='same'))
+        model.add(tf.keras.layers.MaxPooling1D(2))
+        model.add(tf.keras.layers.GlobalAveragePooling1D())
+        model.add(tf.keras.layers.Dense(10))
+        model.add(tf.keras.layers.Dropout(0.3))
+        model.add(tf.keras.layers.Dense(1))
 
         fast_ism_model = fastISM.FastISM(
             model, test_correctness=False)

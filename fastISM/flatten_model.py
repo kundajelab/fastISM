@@ -22,6 +22,7 @@ def node_is_layer(node_name):
     return "LAYER" in node_name
 
 def get_flattened_graph(model):
+    # Inspired by: https://github.com/tensorflow/tensorflow/blob/b36436b087bd8e8701ef51718179037cccdfc26e/tensorflow/python/keras/utils/vis_utils.py#L70
     # Wrapper support like in model_to_dot??
     # Haven't tested for Sequential
     # MORE comments
@@ -30,6 +31,13 @@ def get_flattened_graph(model):
     nodes = dict()
     edges = defaultdict(list)
     subgraph_names = set()
+
+    if isinstance(model, tf.keras.Sequential):
+        if not model.built:
+            model.build()
+        # same as in model_to_dot, without this the layers don't contain
+        # the input layer for some reason
+        layers = super(tf.keras.Sequential, model).layers
 
     for _, layer in enumerate(layers):
         layer_name = "LAYER/{}".format(layer.name)
@@ -62,7 +70,7 @@ def get_flattened_graph(model):
         # using the 1st seems to work along with stripping subgraph names
         # assert(len(layer.inbound_nodes) == 1)
 
-        layer_input_tensors = [format(x.name) for x in nest.flatten(
+        layer_input_tensors = [x.name for x in nest.flatten(
             layer.inbound_nodes[0].input_tensors)]
         # if inbound node comes from a subgraph, it will start with "subgraph_name/"
         # if it comes from subgraph within subgraph, it will start with "subgraph_name1/subgraph_name2/"
@@ -73,6 +81,7 @@ def get_flattened_graph(model):
 
         layer_input_tensors = [
             "TENSOR/{}".format(x) for x in layer_input_tensors]
+            
         assert(all([x in nodes for x in layer_input_tensors]))
 
         if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
