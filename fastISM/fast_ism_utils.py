@@ -11,6 +11,7 @@ from .change_range import ChangeRangesBase, Conv1DChangeRanges, MaxPooling1DChan
 SEE_THROUGH_LAYERS = {
     'InputLayer',  # TODO: should this even be here?
     'Activation',
+    'Dropout',
     'ELU',
     'LeakyReLU',
     'PReLU',
@@ -43,6 +44,7 @@ LOCAL_LAYERS = {
 STOP_LAYERS = {
     'Flatten',
     'Reshape',
+    'GlobalAveragePooling1D',
     'Dense'
 }
 

@@ -160,6 +160,7 @@ class TestSimpleSingleInSingleOutArchitectures(unittest.TestCase):
         self.assertTrue(fast_ism_model.test_correctness())
 
     def test_four_conv_maxpool_two_fc_3(self):
+        # inp -> C -> MXP -> C -> MXP -> C -> MXP -> C -> MXP -> D -> D -> y
         inp = tf.keras.Input((200, 4))
         x = tf.keras.layers.Conv1D(10, 5, use_bias=False, padding='same')(inp)
         x = tf.keras.layers.MaxPooling1D(2)(x)
@@ -173,6 +174,33 @@ class TestSimpleSingleInSingleOutArchitectures(unittest.TestCase):
         x = tf.keras.layers.MaxPooling1D(2)(x)
         x = tf.keras.layers.Flatten()(x)
         x = tf.keras.layers.Dense(10)(x)
+        x = tf.keras.layers.Dense(1)(x)
+        model = tf.keras.Model(inputs=inp, outputs=x)
+
+        fast_ism_model = fastISM.FastISM(
+            model, test_correctness=False)
+
+        self.assertTrue(fast_ism_model.test_correctness())
+    
+    def test_four_conv_maxpool_two_fc_4(self):
+        # inp -> C -> MXP -> C -> MXP -> C -> MXP -> C -> MXP -> D -> D -> y
+        # with Dropout and GlobalAveragePoolng1D
+        inp = tf.keras.Input((200, 4))
+        x = tf.keras.layers.Conv1D(10, 5, use_bias=False, padding='same')(inp)
+        x = tf.keras.layers.MaxPooling1D(2)(x)
+        x = tf.keras.layers.Conv1D(
+            25, 4, padding='same', activation='relu')(inp)
+        x = tf.keras.layers.Dropout(0.5)(x)
+        x = tf.keras.layers.MaxPooling1D(2)(x)
+        x = tf.keras.layers.Conv1D(30, 2, dilation_rate=2, use_bias=False,
+                                   padding='valid', activation='tanh')(x)
+        x = tf.keras.layers.MaxPooling1D(2)(x)
+        x = tf.keras.layers.Dropout(0.8)(x)
+        x = tf.keras.layers.Conv1D(10, 3, padding='same')(x)
+        x = tf.keras.layers.MaxPooling1D(2)(x)
+        x = tf.keras.layers.GlobalAveragePooling1D()(x)
+        x = tf.keras.layers.Dense(10)(x)
+        x = tf.keras.layers.Dropout(0.3)(x)
         x = tf.keras.layers.Dense(1)(x)
         model = tf.keras.Model(inputs=inp, outputs=x)
 
