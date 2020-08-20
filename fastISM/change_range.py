@@ -140,7 +140,11 @@ class Conv1DChangeRanges(ChangeRangesBase):
         # account for edge effects
         input_range_corrected = []
         for x, y in input_change_range_padded:
-            assert(x >= 0 or y < seqlen_with_padding)
+            # this can happen e.g. in dilated convs where the effective 
+            # width gets as wide as input sequence
+            if y-x > seqlen_with_padding:
+                #import pdb;pdb.set_trace()
+                x, y = 0, seqlen_with_padding
             if x < 0:
                 x, y = 0, y-x
             elif y > seqlen_with_padding:
