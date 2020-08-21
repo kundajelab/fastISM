@@ -27,7 +27,6 @@ AGGREGATE_LAYERS = {
     'Add',
     'Maximum',
     'Minumum',
-    'Subtract',
     'Multiply',
     'Average'
 }

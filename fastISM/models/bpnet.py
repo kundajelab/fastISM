@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def bpnet_model(seqlen=1000, numchars=4, num_dilated_convs=5, num_tasks=1,
+def bpnet_model(seqlen=1000, numchars=4, num_dilated_convs=9, num_tasks=1,
                 name='bpnet_model'):
     # original as per https://www.biorxiv.org/content/10.1101/737981v1.full.pdf
     inp = tf.keras.layers.Input(shape=(seqlen, 4))
