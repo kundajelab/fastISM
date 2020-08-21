@@ -7,7 +7,7 @@ cache:
 before_install:
 - pip install poetry
 install:
-- poetry install
+- poetry install -v
 script:
 - python -m unittest discover ./test/ -v
 before_deploy:
@@ -19,3 +19,9 @@ deploy:
   skip_cleanup: true
   on:
     tags: true
+
+# only run when versions are bumped
+# https://docs.travis-ci.com/user/customizing-the-build#safelisting-or-blocklisting-branches
+branches:
+  only:
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
