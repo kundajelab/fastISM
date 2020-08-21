@@ -10,10 +10,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
-
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
+from fastISM.fast_ism_utils import *
 
 # -- Project information -----------------------------------------------------
 
@@ -27,7 +27,7 @@ author = 'Surag Nair'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['recommonmark']
+extensions = ['sphinx.ext.autodoc', 'recommonmark']
 
 
 # Add any paths that contain templates here, relative to this directory.
@@ -43,12 +43,29 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 pygments_style = 'colorful'
 
 
+def format_set(s):
+    return ', '.join(sorted(s))
+
+
+# supported layers
+rst_epilog = """
+.. |SEETHRU| replace:: {}
+.. |AGG| replace:: {}
+.. |LOCAL| replace:: {}
+.. |STOP| replace:: {}
+""".format(format_set(SEE_THROUGH_LAYERS),
+           format_set(AGGREGATE_LAYERS),
+           format_set(LOCAL_LAYERS),
+           format_set(STOP_LAYERS))
+
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
 html_theme = 'alabaster'
+
 
 html_theme_options = {
     # 'code_font_size': '14px'
