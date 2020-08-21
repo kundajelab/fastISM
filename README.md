@@ -1,6 +1,6 @@
 # FastISM
 
-[![PyPI version](https://badge.fury.io/py/fastism.svg)](https://badge.fury.io/py/fastism)
+[![PyPI version](https://badge.fury.io/py/fastism.svg)](https://badge.fury.io/py/fastism) [![Build Status](https://travis-ci.com/kundajelab/fastISM.svg?token=AGJ26SY8T83y31vHU39u&branch=master)](https://travis-ci.com/kundajelab/fastISM)
 
 A Keras implementation for fast in-silico mutagenesis for convolution-based architectures.
 
