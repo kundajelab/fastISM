@@ -28,7 +28,8 @@ class ISMBase():
 
         # TODO: incorporate replace_with
         self.perturbation = tf.constant(
-            np.zeros((1, perturb_width, self.num_chars)))
+            np.zeros((1, perturb_width, self.num_chars)),
+            dtype=tf.dtypes.float32)
 
     def __call__(self, seq_batch):
         pass
@@ -70,5 +71,5 @@ class NaiveISM(ISMBase):
             ism_outputs = np.swapaxes(np.array(ism_outputs), 0, 1)
         else:
             ism_outputs = [np.swapaxes(np.array(x), 0, 1) for x in ism_outputs]
-            
+
         return ism_outputs
