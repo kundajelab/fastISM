@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "fastism"
+name = "fastISM"
 version = "0.1.3"
 description = "Fast In-silico Mutagenesis for Convolution-based Neural Networks"
 authors = ["Surag Nair <surag@stanford.edu>"]
