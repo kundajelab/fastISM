@@ -97,14 +97,15 @@ def get_flattened_graph(model, is_subgraph=False):
 
         if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
             layer_inputlayer_names = [
-                "TENSOR/{}".format(x.output.name) for x in layer.layers if is_input_layer(x)]
-
+                "TENSOR/{}".format(x.name) for x in layer.inputs]
+            
             assert(all([x in nodes for x in layer_inputlayer_names]))
             assert(len(layer_input_tensors) == len(layer_inputlayer_names))
 
             # assuming order of inputs is preserved
-            # need a way to store order info for multi input layers!
+            # need a way to store order info for multi input layers!                
             for x, y in zip(layer_input_tensors, layer_inputlayer_names):
+
                 # transfering edges of y to x and deleting y
                 for e in edges[y]:
                     edges[x].append(e)
