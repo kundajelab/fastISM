@@ -16,6 +16,7 @@ A Keras implementation for fast in-silico mutagenesis (ISM) for convolution-base
    Examples <examples>
    How it Works <explain>
    Supported Layers <layers>
+   Change Log <changelog>
    Citation <cite>
 
 ..

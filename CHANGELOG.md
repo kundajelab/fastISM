@@ -7,7 +7,7 @@
 ### Added
 - Added support for recursively defined networks with 3 test cases
 
-## [0.1.3] - 2020-08-22
+## [0.1.3] - 2020-08-21
 ### Added
 - First PyPI release and tagged version
 - Tested and working on non-recursively defined single-input, single and multi-output architectures
