@@ -40,24 +40,32 @@ You can estimate the speedup obtained by comparing with a naive implementation o
 >>> from fastism import FastISM, NaiveISM
 >>> from fastism.models.basset import basset_model
 >>> import tensorflow as tf
+>>> import numpy as np
 >>> from time import time
 
 >>> model = basset_model(seqlen=1000)
->>> naive_ism_model, fast_ism_model = NaiveISM(model), FastISM(model)
+>>> naive_ism_model = NaiveISM(model)
+>>> fast_ism_model = FastISM(model)
 
 >>> def time_ism(m, x):
         t = time()
-        m(x)
-        return time()-t
+        o = m(x)
+        print(time()-t)
+        return o
 
->>> x = tf.random.uniform((1024, 1000, 4))
+>>> x = tf.random.uniform((1024, 1000, 4),
+                          dtype=tf.dtypes.float64)
 
->>> time_ism(naive_ism_model, x)
+>>> naive_out = time_ism(naive_ism_model, x)
 144.013728
->>> time_ism(fast_ism_model, x)
+>>> fast_out = time_ism(fast_ism_model, x)
 13.894407
+>>> np.allclose(naive_out, fast_out, atol=1e-6) 
+True
+>>> np.allclose(fast_out, naive_out, atol=1e-6) 
+True # np.allclose is not symmetric
 ```
-**TODO** Add benchmarking utilities. Test equality.
+**TODO** Add benchmarking utilities.
 
 ## Getting Help
 fastISM supports the most commonly used subset of Keras for biological sequence-based models. Occasionally, you may find that some of the layers used in your model are not supported by fastISM (Supported Layers section in Documentation). In a few cases, the fastISM model may fail correctness checks, indicating there are likely some issues in the fastISM code. In both such cases or any other bugs, feel free to reach out to the author by posting an [Issue](https://github.com/kundajelab/fastISM/issues) on GitHub along with your architecture, and we'll try to work out a solution!
