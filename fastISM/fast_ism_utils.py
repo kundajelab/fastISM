@@ -28,7 +28,8 @@ AGGREGATE_LAYERS = {
     'Maximum',
     'Minumum',
     'Multiply',
-    'Average'
+    'Average',
+    # 'Subtract' TODO: bugs out since inbound_edges does not contain right order of nodes
 }
 
 # layers at which output at ith position depends on a window around the ith position
