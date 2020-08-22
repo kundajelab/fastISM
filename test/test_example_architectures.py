@@ -58,8 +58,8 @@ class TestExampleArchitectures(unittest.TestCase):
         # seems to need lower numerical to always pass
         self.assertTrue(fast_ism_model.test_correctness(atol=1e-5))
 
-    def test_bpnet_9_dilated_1000(self):
-        model = bpnet_model(seqlen=1000, num_dilated_convs=9)
+    def test_bpnet_9_dilated_500(self):
+        model = bpnet_model(seqlen=500, num_dilated_convs=9)
         
         fast_ism_model = fastISM.FastISM(
             model, test_correctness=False)

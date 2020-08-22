@@ -8,6 +8,9 @@
 - Support for recursively defined networks with 3 test cases
 - This Changelog file.
 
+### Changed
+- BPNet test cases atol changed to 1e-5 so they pass deterministically
+
 ## [0.1.3] - 2020-08-21
 ### Added
 - First PyPI release and tagged version
