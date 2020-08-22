@@ -17,14 +17,25 @@ def strip_subgraph_names(name, subgraph_names):
         name = name[name.find("/")+1:]
     return name
 
+
 def node_is_layer(node_name):
     # if False then Tensor
     return "LAYER" in node_name
 
-def get_flattened_graph(model):
+
+def is_bipartite(edges):
+    # only layer->tensor/tensor->layer connections allowed
+    for node in edges:
+        is_layer = node_is_layer(node)
+        for ngb in edges[node]:
+            if node_is_layer(ngb) == is_layer:
+                return False
+    return True
+
+
+def get_flattened_graph(model, is_subgraph=False):
     # Inspired by: https://github.com/tensorflow/tensorflow/blob/b36436b087bd8e8701ef51718179037cccdfc26e/tensorflow/python/keras/utils/vis_utils.py#L70
     # Wrapper support like in model_to_dot??
-    # Haven't tested for Sequential
     # MORE comments
     # get rid of intermediate inputlayers, make graph bipartite
     layers = model.layers
@@ -43,8 +54,8 @@ def get_flattened_graph(model):
         layer_name = "LAYER/{}".format(layer.name)
 
         if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
-            subgraph_nodes, subgraph_edges, subsubgraph_names = get_flattened_graph(
-                layer)
+            subgraph_nodes, subgraph_edges, subsubgraph_names, _ = get_flattened_graph(
+                layer, is_subgraph=True)
 
             nodes.update(subgraph_nodes)
             edges.update(subgraph_edges)
@@ -53,13 +64,13 @@ def get_flattened_graph(model):
 
         else:
             for o in nest.flatten(layer.output):
-                nodes["TENSOR/{}".format(o.name)] = None 
+                nodes["TENSOR/{}".format(o.name)] = None
 
-                #if not isinstance(layer, tf.keras.layers.InputLayer):
-                # TBD if necessary
-                nodes[layer_name] = layer
-                # layer -> tensor edge (trivial)
-                edges[layer_name].append("TENSOR/{}".format(o.name))
+                if not (is_subgraph and isinstance(layer, tf.keras.layers.InputLayer)):
+                    # TBD if necessary
+                    nodes[layer_name] = layer
+                    # layer -> tensor edge (trivial)
+                    edges[layer_name].append("TENSOR/{}".format(o.name))
 
     # tensor -> inputLayer tensor edges
     # tensor -> Layer edges
@@ -81,7 +92,7 @@ def get_flattened_graph(model):
 
         layer_input_tensors = [
             "TENSOR/{}".format(x) for x in layer_input_tensors]
-            
+
         assert(all([x in nodes for x in layer_input_tensors]))
 
         if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
@@ -94,8 +105,11 @@ def get_flattened_graph(model):
             # assuming order of inputs is preserved
             # need a way to store order info for multi input layers!
             for x, y in zip(layer_input_tensors, layer_inputlayer_names):
-                edges[x].append(y)
-            pass
+                # transfering edges of y to x and deleting y
+                for e in edges[y]:
+                    edges[x].append(e)
+                del edges[y]
+                del nodes[y]
 
         elif not isinstance(layer, tf.keras.layers.InputLayer):
             layer_name = "LAYER/{}".format(layer.name)
@@ -103,13 +117,20 @@ def get_flattened_graph(model):
             for x in layer_input_tensors:
                 edges[x].append(layer_name)
 
-    return nodes, edges, subgraph_names
+    assert(is_bipartite(edges))
+
+    # strip model output names
+    output_nodes = ["TENSOR/{}".format(strip_subgraph_names(x.name, subgraph_names))
+                    for x in model.outputs]
+    assert(all([o in nodes for o in output_nodes]))
+
+    return nodes, edges, subgraph_names, output_nodes
 
 
 def viz_graph(nodes, edges, outpath):
     dot = pydot.Dot()
     dot.set('rankdir', 'TB')
-    #dot.set('concentrate', True)
+    # dot.set('concentrate', True)
     # dot.set_node_defaults(shape='record')
     dot.set('dpi', 96)
     for x in nodes:

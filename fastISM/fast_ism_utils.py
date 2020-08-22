@@ -57,14 +57,14 @@ class SliceAssign(tf.keras.layers.Layer):
         self.a_dim = a_dim
 
         # after one slice assign, tf can't calculate dimension
-        # since i is not known. So manually specify b_dim 
+        # since i is not known. So manually specify b_dim
         self.b_dim = b_dim
 
     def call(self, inputs):
         # GOAL: a[:,i:min(i+b.shape[1], a.shape[1])] = b
-        # clip b if i+b.shape[1] exceeds width of a, guarantee width of output 
+        # clip b if i+b.shape[1] exceeds width of a, guarantee width of output
         # is same as a. This could happen when a layer's output (b) feeds into
-        # multiple layers, but some layers don't need all positions of b 
+        # multiple layers, but some layers don't need all positions of b
         # (can happen near the edges).
         # See test_skip_then_mxp of test/test_simple_skip_conn_architectures.py
 
@@ -376,10 +376,14 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
     return segments
 
 
-def generate_intermediate_output_model(model, nodes, edges, inbound_edges, node_to_segment):
+def generate_intermediate_output_model(model, nodes, edges, inbound_edges,
+                                       outputs, node_to_segment):
     inputs = ["TENSOR/{}".format(i.name) for i in model.inputs]
     assert(all([i in nodes for i in inputs]))
-    outputs = ["TENSOR/{}".format(o.name) for o in model.outputs]
+    
+    # passed as input as for nested nodes it can contain subgraph names
+    # so flatten_model.get_flattened_graph returns output names after
+    # stripping subgraph names
     assert(all([o in nodes for o in outputs]))
 
     node_to_tensor = dict()
@@ -470,10 +474,13 @@ def generate_intermediate_output_subgraph(current_node, node_to_tensor, output_t
     return node_to_tensor, output_tensor_names
 
 
-def generate_fast_ism_model(model, nodes, edges, inbound_edges, node_to_segment, segments):
+def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs, node_to_segment, segments):
     inputs = ["TENSOR/{}".format(i.name) for i in model.inputs]
     assert(all([i in nodes for i in inputs]))
-    outputs = ["TENSOR/{}".format(o.name) for o in model.outputs]
+
+    # passed as input as for nested nodes it can contain subgraph names
+    # so flatten_model.get_flattened_graph returns output names after
+    # stripping subgraph names
     assert(all([o in nodes for o in outputs]))
 
     # tensor for each node edge, if a node has multiple edges
@@ -659,7 +666,7 @@ def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
     # generate 2 models: first returns intermediate outputs for unperturbed inputs,
     # second is the "FastISM" model that runs on perturbed inputs
 
-    nodes, edges, _ = flatten_model.get_flattened_graph(model)
+    nodes, edges, _, output_nodes = flatten_model.get_flattened_graph(model)
     inbound_edges = defaultdict(list)
     for x in edges:
         for y in edges[x]:
@@ -675,9 +682,10 @@ def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
 
     # augment model to return a model that returns intermediate outputs
     intout_model, intout_output_tensors = generate_intermediate_output_model(
-        model, nodes, edges, inbound_edges, node_to_segment)
+        model, nodes, edges, inbound_edges, output_nodes, node_to_segment)
 
     fast_ism_model, input_specs = generate_fast_ism_model(
-        model, nodes, edges, inbound_edges, node_to_segment, segments)
+        model, nodes, edges, inbound_edges, output_nodes, node_to_segment,
+        segments)
 
     return intout_model, intout_output_tensors, fast_ism_model, input_specs

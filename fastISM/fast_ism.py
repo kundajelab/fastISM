@@ -25,7 +25,8 @@ class FastISM(ISMBase):
 
     def __call__(self, seq_batch):
         # run intermediate output on unperturbed sequence
-        intout_output = self.intermediate_output_model(seq_batch, training=False)
+        intout_output = self.intermediate_output_model(
+            seq_batch, training=False)
         padded_inputs = self.prepare_intout_output(
             intout_output, seq_batch.shape[0])  # better name than padded?
 
@@ -64,7 +65,8 @@ class FastISM(ISMBase):
             elif input_spec[0] == "INTOUT":
                 # pad the output if required
                 to_pad = intout_output[self.intout_output_tensor_to_idx[input_spec[1]['node']]]
-                padded = tf.keras.layers.ZeroPadding1D(input_spec[1]['padding'])(to_pad)
+                padded = tf.keras.layers.ZeroPadding1D(
+                    input_spec[1]['padding'])(to_pad)
                 inputs.append(padded)
 
             elif input_spec[0] == "OFFSET":
@@ -120,7 +122,9 @@ class FastISM(ISMBase):
         if self.num_outputs == 1:
             return np.all(np.isclose(naive_out, fast_out, atol=atol))
         else:
-            return all([np.all(np.isclose(naive_out[j], fast_out[j], atol=atol)) for j in range(self.num_outputs)])
+            return all([np.allclose(naive_out[j], fast_out[j], atol=atol) and
+                        np.allclose(fast_out[j], naive_out[j], atol=atol) for
+                        j in range(self.num_outputs)])
 
     def time_batch(self, seq_batch):
         pass
