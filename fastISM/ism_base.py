@@ -28,8 +28,7 @@ class ISMBase():
 
         # TODO: incorporate replace_with
         self.perturbation = tf.constant(
-            np.zeros((1, perturb_width, self.num_chars)),
-            dtype=tf.dtypes.float32)
+            np.zeros((1, perturb_width, self.num_chars)))
 
     def __call__(self, seq_batch):
         pass
