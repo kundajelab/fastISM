@@ -2,7 +2,7 @@ Supported Layers
 ================
 This sections covers the layers that are currently supported by fastISM. fastISM supports a subset of layers in ``tf.keras.layers`` that are most commonly used for sequence-based models. 
 
-**NOTE**: Restrictions on layers apply only till :ref:`stop-layers` (or layers after those that are affected at a high fraction of positions-- explain better), beyond which all layers are allowed.
+**NOTE**: Restrictions on layers apply only till :ref:`stop-layers`, beyond which all layers are allowed.
 
 The layers below have been classified by which positions of the output are a function of the input at the ``i`` th position.
 
