@@ -20,7 +20,7 @@ def strip_subgraph_names(name, subgraph_names):
 
 def node_is_layer(node_name):
     # if False then Tensor
-    return "LAYER" in node_name
+    return node_name.startswith("LAYER")
 
 
 def is_bipartite(edges):
