@@ -25,19 +25,21 @@ fastISM supports models which have other inputs in addition to the sequence inpu
        x = tf.keras.layers.Conv1D(20, 3)(x)
        x = tf.keras.layers.Flatten()(x)
  
-       rna = tf.keras.layers.Dense(10)(rna)
+       rna_fc = tf.keras.layers.Dense(10)(rna)
  
-       x = tf.keras.layers.Concatenate()([x, rna])
+       x = tf.keras.layers.Concatenate()([x, rna_fc])
        x = tf.keras.layers.Dense(10)(x)
        x = tf.keras.layers.Dense(1)(x)
        model = tf.keras.Model(inputs=[rna,seq], outputs=x)
+       
+       return model
 
 To inform fastISM that the second input is the primary sequence input that will be perturbed:
 
 .. code-block:: python
 
    >>> model = get_model()
-   >>> fast_ism_model = fastISM.FastISM(model, seq_input_idx=1) 
+   >>> fast_ism_model = FastISM(model, seq_input_idx=1) 
 
 Then to obtain the outputs:
 
