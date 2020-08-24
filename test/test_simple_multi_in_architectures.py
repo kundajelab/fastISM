@@ -262,6 +262,43 @@ class TestSimpleMultiInArchitectures(unittest.TestCase):
         self.assertTrue(fast_ism_model1.test_correctness())
         self.assertTrue(fast_ism_model2.test_correctness())
 
+    def test_one_alt_double_cat_three_out_10bp_change_range(self):
+        # test multiple outputs
+        #              |----> D -> y1
+        # inp_seq -> C ->  Concat ----> D -> D -> y2
+        #                     ^         |
+        #       inp_alt -> D -|-> D ->Concat -> D -> y3
+        inp_seq = tf.keras.Input((100, 4))
+        inp_alt = tf.keras.Input((10,))
+        x = tf.keras.layers.Conv1D(20, 3)(inp_seq)
+        x = tf.keras.layers.Flatten()(x)
+        y1 = tf.keras.layers.Dense(1)(x)
+        x_alt = tf.keras.layers.Dense(10)(inp_alt)
+        x = tf.keras.layers.Concatenate()([x, x_alt])
+        x_alt = tf.keras.layers.Dense(10)(x_alt)
+        x = tf.keras.layers.Dense(10)(x)
+        x_alt = tf.keras.layers.Concatenate()([x, x_alt])
+        y2 = tf.keras.layers.Dense(1)(x)
+        y3 = tf.keras.layers.Dense(1)(x_alt)
+
+        # both order of inputs
+        model1 = tf.keras.Model(
+            inputs=[inp_seq, inp_alt], outputs=[y1, y2, y3])
+        model2 = tf.keras.Model(
+            inputs=[inp_alt, inp_seq], outputs=[y1, y2, y3])
+
+        fast_ism_model1 = fastISM.FastISM(
+            model1, seq_input_idx=0,
+            change_ranges=[(i, i+10) for i in range(0, 100, 10)],
+            test_correctness=False)
+        fast_ism_model2 = fastISM.FastISM(
+            model2, seq_input_idx=1,
+            change_ranges=[(i, i+10) for i in range(0, 100, 10)],
+            test_correctness=False)
+
+        self.assertTrue(fast_ism_model1.test_correctness())
+        self.assertTrue(fast_ism_model2.test_correctness())
+
 
 if __name__ == '__main__':
     unittest.main()
