@@ -29,7 +29,7 @@ AGGREGATE_LAYERS = {
     'Minumum',
     'Multiply',
     'Average',
-    # 'Subtract' TODO: bugs out since inbound_edges does not contain right order of nodes
+    'Subtract'
 }
 
 # layers at which output at ith position depends on a window around the ith position
@@ -115,31 +115,54 @@ class GraphSegment():
 
 
 # perhaps convert these to a class so that nodes, edges don't have to be fed as input always
-def segment_model(model, nodes, edges, inbound_edges):
+def segment_model(model, nodes, edges, inbound_edges, seq_input_idx):
     # segment model into groups that can be run as a unit. Intermediate outputs after each group
     # should be captured for unperturbed inputs. Segmenting thus helps minimise number of intermediate
     # outputs that need to be captured
 
     # starting with single sequence-only input models
     # will relax later
-    assert(len(model.inputs) == 1)
 
-    input_layer = "LAYER/{}".format(model.input_names[0])
+    input_layer = "LAYER/{}".format(model.input_names[seq_input_idx])
     assert(input_layer in nodes)
 
     assert(len(edges[input_layer]) == 1)
     input_tensor = edges[input_layer][0]
 
-    return segment_subgraph(input_tensor, nodes, edges, inbound_edges, dict(), 0, 0)[0]
+    # process starting from sequence input
+    node_to_segment, stop_segment_idxs, segment_idx = segment_subgraph(
+        input_tensor, nodes, edges, inbound_edges, dict(), set(), 0, 0)
+
+    # process alternate inputs if any
+    alternate_input_segment_idxs = set()
+    for i, alternate_input in enumerate(model.input_names):
+        if i != seq_input_idx:
+            alternate_input_layer = "LAYER/{}".format(alternate_input)
+            assert(alternate_input_layer in nodes)
+
+            assert(len(edges[alternate_input_layer]) == 1)
+            alternate_input_tensor = edges[alternate_input_layer][0]
+
+            alternate_input_segment_idxs.add(segment_idx)
+
+            node_to_segment = label_alternate_input_segment_idxs(
+                alternate_input_tensor, nodes, edges, node_to_segment,
+                stop_segment_idxs, alternate_input_segment_idxs, segment_idx)
+
+            segment_idx += 1
+
+    return node_to_segment, stop_segment_idxs, alternate_input_segment_idxs
 
 
-def segment_subgraph(current_node, nodes, edges, inbound_edges, node_to_segment, segment_idx, num_convs_in_cur_segment):
+def segment_subgraph(current_node, nodes, edges, inbound_edges,
+                     node_to_segment, stop_segment_idxs, segment_idx,
+                     num_convs_in_cur_segment):
     # segment_idx is the current segment_idx
     # node_to_segment is dict from node->segment
 
     # already segmented
     if current_node in node_to_segment:
-        return node_to_segment, segment_idx
+        return node_to_segment, stop_segment_idxs, segment_idx
 
     if flatten_model.node_is_layer(current_node):
         layer_class = nodes[current_node].__class__.__name__
@@ -154,8 +177,12 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges, node_to_segment,
         elif layer_class in STOP_LAYERS:
             # mark end of current segment
             segment_idx += 1
+
+            # add to set of stop segments
+            stop_segment_idxs.add(segment_idx)
+
             # recursively label all descendants (no more further segments)
-            return label_descendants(current_node, nodes, edges, node_to_segment, segment_idx), segment_idx+1
+            return label_stop_descendants(current_node, nodes, edges, node_to_segment, segment_idx), stop_segment_idxs, segment_idx+1
 
         elif layer_class == 'Conv1D':
             # enforce that if a segment has a conv layer, it is always at the beginning
@@ -164,17 +191,17 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges, node_to_segment,
             segment_idx += 1
 
             node_to_segment[current_node] = segment_idx
-            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, segment_idx, 1)
+            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, stop_segment_idxs, segment_idx, 1)
 
         elif len(inbound_edges[current_node]) > 1:
             segment_idx += 1
             node_to_segment[current_node] = segment_idx
-            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, segment_idx, 0)
+            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, stop_segment_idxs, segment_idx, 0)
 
         else:
             # single-input, single-output layer -> propagate further
             node_to_segment[current_node] = segment_idx
-            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, segment_idx, num_convs_in_cur_segment)
+            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, stop_segment_idxs, segment_idx, num_convs_in_cur_segment)
 
     # it's a tensor
     else:
@@ -185,49 +212,75 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges, node_to_segment,
 
         # terminal tensor, done
         if len(edges[current_node]) == 0:
-            return node_to_segment, segment_idx+1
+            return node_to_segment, stop_segment_idxs, segment_idx+1
 
         # single edge out, propogate
         elif len(edges[current_node]) == 1:
-            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, segment_idx, num_convs_in_cur_segment)
+            return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, stop_segment_idxs, segment_idx, num_convs_in_cur_segment)
 
         # multi edge out => multiple layers use this tensor
         # e.g. resnet layers
         else:
             segment_idx += 1  # increment segment idx
             for next_node in edges[current_node]:
-                node_to_segment, segment_idx = segment_subgraph(
-                    next_node, nodes, edges, inbound_edges, node_to_segment, segment_idx, 0)
-            return node_to_segment, segment_idx
+                node_to_segment, stop_segment_idxs, segment_idx = segment_subgraph(
+                    next_node, nodes, edges, inbound_edges, node_to_segment, stop_segment_idxs, segment_idx, 0)
+            return node_to_segment, stop_segment_idxs, segment_idx
 
 
-def label_descendants(current_node, nodes, edges, node_to_segment, segment_idx):
+def label_stop_descendants(current_node, nodes, edges, node_to_segment, segment_idx):
+    # label nodes downstream of STOP_LAYERS
     node_to_segment[current_node] = segment_idx
 
     for node in edges[current_node]:
-        node_to_segment = label_descendants(
+        node_to_segment = label_stop_descendants(
             node, nodes, edges, node_to_segment, segment_idx)
+
+    return node_to_segment
+
+
+def label_alternate_input_segment_idxs(current_node, nodes, edges, node_to_segment,
+                                       stop_segment_idxs, alternate_input_segment_idxs,
+                                       segment_idx):
+    # label segments that start from alternate inputs
+
+    if current_node in node_to_segment:
+        if (node_to_segment[current_node] not in stop_segment_idxs) and \
+                (node_to_segment[current_node] not in alternate_input_segment_idxs):
+            raise not_supported_error(
+                "Non-sequence input connects directly with sequence input before a STOP_LAYER--")
+        else:
+            return node_to_segment
+
+    node_to_segment[current_node] = segment_idx
+
+    for node in edges[current_node]:
+        node_to_segment = label_alternate_input_segment_idxs(node, nodes, edges,
+                                                             node_to_segment,
+                                                             stop_segment_idxs,
+                                                             alternate_input_segment_idxs,
+                                                             segment_idx)
 
     return node_to_segment
 
 
 def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                                   node_to_segment, input_seqlen, input_filters,
-                                  input_change_ranges):
+                                  input_change_ranges, seq_input_idx):
     """
     for each segment, given input change range compute (ChangeRangesBase.forward_compose):
         - input range of intermediate output required
         - offsets for input tensor wrt intermediate output
         - output seqlen
         - output change range
-        - number of filters in output
+        - number of filters in output.
+
+    Starts only from sequence input that is changed. Does not deal with alternate
+    inputs.
     """
 
-    # starting with single sequence-only input models
-    # will relax later
-    assert(len(model.inputs) == 1)
-
-    input_layer = "LAYER/{}".format(model.input_names[0])
+    # starting sequence input and compute change ranges
+    input_layer = "LAYER/{}".format(model.input_names[seq_input_idx])
     assert(input_layer in nodes)
 
     assert(len(edges[input_layer]) == 1)
@@ -290,12 +343,11 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
 
             # resolve multiple input_change_ranges
             if len(set(segments_to_process_input_seqlens[cur_segment_to_process])) != 1:
-                raise NotImplementedError(
-                    "This multi-input layer takes in inputs of different length, \
-                        currently not supported")
+                not_supported_error(
+                    "This multi-input layer takes in inputs of different length")
             if len(set(segments_to_process_input_filters[cur_segment_to_process])) != 1:
-                raise NotImplementedError("This multi-input layer takes in \
-                                          inputs of different filters, currently not supported")
+                not_supported_error("This multi-input layer takes in \
+                                          inputs of different filters")
             cur_input_seqlen = segments_to_process_input_seqlens[cur_segment_to_process][0]
             segment_filters = segments_to_process_input_filters[cur_segment_to_process][0]
 
@@ -361,18 +413,11 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                         segments_to_process_input_change_ranges[next_segment].append(
                             segment.output_perturbed_ranges)
 
+                    # break from while True loop
                     break
 
                 else:
                     cur_segment_tensor = edges[cur_segment_tensor][0]
-
-    # exclude and input_tensor segment
-    # re-evaluate after fixing input_tensor special status
-    # this is definitely not necessarily true
-    # need to handle block layers properly
-    # TODO
-    assert(len(segments) ==
-           len(set(node_to_segment.values())))
 
     return segments
 
@@ -381,7 +426,7 @@ def generate_intermediate_output_model(model, nodes, edges, inbound_edges,
                                        outputs, node_to_segment):
     inputs = ["TENSOR/{}".format(i.name) for i in model.inputs]
     assert(all([i in nodes for i in inputs]))
-    
+
     # passed as input as for nested nodes it can contain subgraph names
     # so flatten_model.get_flattened_graph returns output names after
     # stripping subgraph names
@@ -475,7 +520,9 @@ def generate_intermediate_output_subgraph(current_node, node_to_tensor, output_t
     return node_to_tensor, output_tensor_names
 
 
-def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs, node_to_segment, segments):
+def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs,
+                            node_to_segment, alternate_input_segment_idxs,
+                            segments):
     inputs = ["TENSOR/{}".format(i.name) for i in model.inputs]
     assert(all([i in nodes for i in inputs]))
 
@@ -494,9 +541,11 @@ def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs, node_to
     # unperturbed sequence
     for output_node in outputs:
         # reverse graph traversal
-        node_edge_to_tensor, input_tensors, input_specs = generate_fast_ism_subgraph(
-            output_node, node_edge_to_tensor, input_tensors, input_specs, nodes, edges,
-            inbound_edges, node_to_segment, segments)
+        node_edge_to_tensor, input_tensors, input_specs = \
+            generate_fast_ism_subgraph(output_node, node_edge_to_tensor,
+                                       input_tensors, input_specs, nodes,
+                                       edges, inbound_edges, node_to_segment,
+                                       alternate_input_segment_idxs, segments)
 
     fast_ism_model = tf.keras.Model(inputs=input_tensors,
                                     outputs=[node_edge_to_tensor[(inbound_edges[o][0], o)]
@@ -508,11 +557,11 @@ def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs, node_to
 
 def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
                                input_specs, nodes, edges, inbound_edges,
-                               node_to_segment, segments):
+                               node_to_segment, alternate_input_segment_idxs, segments):
     # nodes: mapping from Node name -> layer object of model if layer else None
     # weights are copied within this
 
-    # function traces back from current node
+    # function traces back from current node (reverse graph traversal)
     # recursively adds all "upstream" tensors to node_edge_to_tensor
 
     # INVARIANT: should only run on tensors, not layers
@@ -534,6 +583,13 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
     if len(edges[parent_layer]) > 1:
         raise NotImplementedError(
             "Layer with multiple outputs, what to do?")
+
+    if node_to_segment[current_node] in alternate_input_segment_idxs:
+        return process_alternate_input_node(current_node, node_edge_to_tensor,
+                                            input_tensors, input_specs, nodes,
+                                            edges, inbound_edges,
+                                            node_to_segment,
+                                            alternate_input_segment_idxs)
 
     config = deepcopy(nodes[parent_layer].get_config())
     config['name'] = "FastISM_{}".format(config['name'])
@@ -568,6 +624,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
                                            node_edge_to_tensor, input_tensors,
                                            input_specs, nodes, edges,
                                            inbound_edges, node_to_segment,
+                                           alternate_input_segment_idxs,
                                            segments)
 
         # make the layer
@@ -620,7 +677,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
 
             input_tensors.append(unperturbed_intout_input)
             # add info sufficient for preparing inputs
-            input_specs.append(("INTOUT", {
+            input_specs.append(("INTOUT_SEQ", {
                 "node": current_node,
                 "slices": next_segment.input_unperturbed_slices,
                 "padding": next_segment.input_unperturbed_padding
@@ -663,30 +720,71 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
     return node_edge_to_tensor, input_tensors, input_specs
 
 
+def process_alternate_input_node(current_node, node_edge_to_tensor,
+                                 input_tensors, input_specs, nodes, edges,
+                                 inbound_edges, node_to_segment,
+                                 alternate_input_segment_idxs):
+    assert(node_to_segment[current_node] in alternate_input_segment_idxs)
+
+    parent_layer = inbound_edges[current_node][0]
+
+    name = 'FastISM_{}'.format(current_node).replace(":", "/")
+
+    shape = nodes[parent_layer].output_shape
+    if isinstance(shape, list):
+        assert(len(shape)==1)
+        shape = shape[0]
+
+    alt_input_intout_output = tf.keras.Input(
+        shape=shape[1:],
+        name=name)  
+
+    input_tensors.append(alt_input_intout_output)
+    # add info sufficient for preparing inputs
+    input_specs.append(("INTOUT_ALT", {
+        "node": current_node
+    }))
+
+    node_edge_to_tensor[(parent_layer, current_node)] = alt_input_intout_output
+
+    for next_layer_node in edges[current_node]:
+        # choose edges that connect into stop layer/downstream of stop layer
+        # not explicitly checking if downstream of stop layer since that is
+        # enforced by segment_model
+        if node_to_segment[next_layer_node] not in alternate_input_segment_idxs:
+            node_edge_to_tensor[(current_node, next_layer_node)] = \
+                alt_input_intout_output
+
+    return node_edge_to_tensor, input_tensors, input_specs
+
+
 def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
     # generate 2 models: first returns intermediate outputs for unperturbed inputs,
     # second is the "FastISM" model that runs on perturbed inputs
 
-    nodes, edges, _, output_nodes = flatten_model.get_flattened_graph(model)
-    inbound_edges = defaultdict(list)
-    for x in edges:
-        for y in edges[x]:
-            inbound_edges[y].append(x)
+    nodes, edges, inbound_edges, _, output_nodes = flatten_model.get_flattened_graph(model)
 
     # break model into segments
-    node_to_segment = segment_model(model, nodes, edges, inbound_edges)
+    node_to_segment, stop_segment_idxs, alternate_input_segment_idxs = segment_model(
+        model, nodes, edges, inbound_edges, seq_input_idx)
 
     # for each segment, compute metadata used for stitching together outputs
     # dict: segment_idx -> GraphSegment object
     segments = compute_segment_change_ranges(model, nodes, edges, inbound_edges, node_to_segment,
-                                             seqlen, num_chars, change_ranges)
+                                             seqlen, num_chars, change_ranges, seq_input_idx)
+    # TODO: check if this makes sense
+    # compute_segment_change_ranges does not process segments belonging to
+    # alternate (non-sequence) inputs
+    assert(len(segments) == len(set(node_to_segment.values())) -
+           len(alternate_input_segment_idxs))
 
     # augment model to return a model that returns intermediate outputs
+    # returns all tensors that occur at segment change-points
     intout_model, intout_output_tensors = generate_intermediate_output_model(
         model, nodes, edges, inbound_edges, output_nodes, node_to_segment)
 
     fast_ism_model, input_specs = generate_fast_ism_model(
         model, nodes, edges, inbound_edges, output_nodes, node_to_segment,
-        segments)
+        alternate_input_segment_idxs, segments)
 
     return intout_model, intout_output_tensors, fast_ism_model, input_specs

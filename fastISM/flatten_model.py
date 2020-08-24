@@ -23,6 +23,10 @@ def node_is_layer(node_name):
     return node_name.startswith("LAYER")
 
 
+def list_replace(l, old, new):
+    return [new if t == old else t for t in l]
+
+
 def is_bipartite(edges):
     # only layer->tensor/tensor->layer connections allowed
     for node in edges:
@@ -33,14 +37,29 @@ def is_bipartite(edges):
     return True
 
 
+def is_consistent(edges, inbound_edges):
+    inbound_edges_from_edges = defaultdict(set)
+    for x in edges:
+        for y in edges[x]:
+            inbound_edges_from_edges[y].add(x)
+    if set(inbound_edges_from_edges.keys()) != set(inbound_edges.keys()):
+        return False
+
+    for x in inbound_edges:
+        if set(inbound_edges[x]) != inbound_edges_from_edges[x]:
+            return False
+    return True
+
+
 def get_flattened_graph(model, is_subgraph=False):
     # Inspired by: https://github.com/tensorflow/tensorflow/blob/b36436b087bd8e8701ef51718179037cccdfc26e/tensorflow/python/keras/utils/vis_utils.py#L70
     # Wrapper support like in model_to_dot??
     # MORE comments
-    # get rid of intermediate inputlayers, make graph bipartite
+    # gets rid of intermediate inputlayers and makes graph bipartite
     layers = model.layers
     nodes = dict()
     edges = defaultdict(list)
+    inbound_edges = defaultdict(list)
     subgraph_names = set()
 
     if isinstance(model, tf.keras.Sequential):
@@ -54,11 +73,13 @@ def get_flattened_graph(model, is_subgraph=False):
         layer_name = "LAYER/{}".format(layer.name)
 
         if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
-            subgraph_nodes, subgraph_edges, subsubgraph_names, _ = get_flattened_graph(
-                layer, is_subgraph=True)
+            subgraph_nodes, subgraph_edges, subgraph_inbound_edges, \
+                subsubgraph_names, _ = get_flattened_graph(
+                    layer, is_subgraph=True)
 
             nodes.update(subgraph_nodes)
             edges.update(subgraph_edges)
+            inbound_edges.update(subgraph_inbound_edges)
             subgraph_names.add(layer.name)
             subgraph_names.update(subsubgraph_names)
 
@@ -71,6 +92,8 @@ def get_flattened_graph(model, is_subgraph=False):
                     nodes[layer_name] = layer
                     # layer -> tensor edge (trivial)
                     edges[layer_name].append("TENSOR/{}".format(o.name))
+                    inbound_edges["TENSOR/{}".format(o.name)
+                                  ].append(layer_name)
 
     # tensor -> inputLayer tensor edges
     # tensor -> Layer edges
@@ -98,17 +121,20 @@ def get_flattened_graph(model, is_subgraph=False):
         if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
             layer_inputlayer_names = [
                 "TENSOR/{}".format(x.name) for x in layer.inputs]
-            
+
             assert(all([x in nodes for x in layer_inputlayer_names]))
             assert(len(layer_input_tensors) == len(layer_inputlayer_names))
 
             # assuming order of inputs is preserved
-            # need a way to store order info for multi input layers!                
+            # inbound_edges should store inputs in correct order for multi
+            # input layers
             for x, y in zip(layer_input_tensors, layer_inputlayer_names):
-
                 # transfering edges of y to x and deleting y
                 for e in edges[y]:
                     edges[x].append(e)
+                    # replace y by x in inbound_edges
+                    inbound_edges[e] = list_replace(inbound_edges[e], y, x)
+
                 del edges[y]
                 del nodes[y]
 
@@ -117,15 +143,20 @@ def get_flattened_graph(model, is_subgraph=False):
 
             for x in layer_input_tensors:
                 edges[x].append(layer_name)
+                # this preserves order of inputs
+                inbound_edges[layer_name].append(x)
 
     assert(is_bipartite(edges))
+
+    # ensure edges and inbound_edges agree
+    assert(is_consistent(edges, inbound_edges))
 
     # strip model output names
     output_nodes = ["TENSOR/{}".format(strip_subgraph_names(x.name, subgraph_names))
                     for x in model.outputs]
     assert(all([o in nodes for o in output_nodes]))
 
-    return nodes, edges, subgraph_names, output_nodes
+    return nodes, edges, inbound_edges, subgraph_names, output_nodes
 
 
 def viz_graph(nodes, edges, outpath):
