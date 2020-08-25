@@ -36,7 +36,6 @@ fastISM does a check for correctness when the model is initialised, which may ta
 ## Benchmark
 You can estimate the speedup obtained by comparing with a naive implementation of ISM.
 ```python
-# Test this code as is
 >>> from fastism import FastISM, NaiveISM
 >>> from fastism.models.basset import basset_model
 >>> import tensorflow as tf
