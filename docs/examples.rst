@@ -56,7 +56,7 @@ Then to obtain the outputs:
 
 Recursively Defined models
 --------------------------
-Keras allows defning models in a nested fashion. As such, recursively defined models should not pose an issue to fastISM. The example below works:
+Keras allows defining models in a nested fashion. As such, recursively defined models should not pose an issue to fastISM. The example below works:
 
 .. code-block:: python
 
