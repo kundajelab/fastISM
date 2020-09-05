@@ -20,12 +20,12 @@ def bpnet_model(seqlen=1000, numchars=4, num_dilated_convs=9, num_tasks=1,
         # profile shape head
         px = tf.keras.layers.Reshape((-1, 1, 64))(bottleneck)
         px = tf.keras.layers.Conv2DTranspose(
-            2, kernel_size=(25, 1), padding='same')(px)
-        outputs.append(tf.keras.layers.Reshape((-1, 2))(px))
+            1, kernel_size=(25, 1), padding='same')(px)
+        outputs.append(tf.keras.layers.Flatten()(px))
 
         # total counts head
         cx = tf.keras.layers.GlobalAvgPool1D()(bottleneck)
-        outputs.append(tf.keras.layers.Dense(2)(cx))
+        outputs.append(tf.keras.layers.Dense(1)(cx))
 
     model = tf.keras.Model(inputs=inp, outputs=outputs)
 

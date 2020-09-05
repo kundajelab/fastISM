@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def factorized_basset_model(seqlen=1000, numchars=4, name='factorized_basset_model'):
+def factorized_basset_model(seqlen=1000, numchars=4, num_outputs=1, name='factorized_basset_model'):
     inp = tf.keras.Input(shape=(seqlen, numchars))
 
     # conv mxp 1
@@ -49,7 +49,7 @@ def factorized_basset_model(seqlen=1000, numchars=4, name='factorized_basset_mod
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dense(1000, activation='relu', name='fc2')(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dense(10, name='fc3')(x)
+    x = tf.keras.layers.Dense(num_outputs, name='fc3')(x)
 
     model = tf.keras.Model(inputs=inp, outputs=x, name=name)
 
