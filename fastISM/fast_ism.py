@@ -79,8 +79,9 @@ class FastISM(ISMBase):
             elif input_spec[0] == "INTOUT_SEQ":
                 # slice
                 inputs.append(
-                    tf.gather(padded_inputs[input_idx], idxs_to_mutate)[:,
-                                             input_spec[1]['slices'][i][0]: input_spec[1]['slices'][i][1]])
+                    tf.gather(padded_inputs[input_idx][:,
+                                             input_spec[1]['slices'][i][0]: input_spec[1]['slices'][i][1]],
+                                             idxs_to_mutate))
             elif input_spec[0] == "INTOUT_ALT":
                 inputs.append(tf.gather(padded_inputs[input_idx], idxs_to_mutate))
             elif input_spec[0] == "OFFSET":
