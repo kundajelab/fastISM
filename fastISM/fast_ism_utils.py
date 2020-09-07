@@ -62,12 +62,19 @@ class SliceAssign(tf.keras.layers.Layer):
         self.b_dim = b_dim
 
     def call(self, inputs):
-        # GOAL: a[:,i:min(i+b.shape[1], a.shape[1])] = b
-        # clip b if i+b.shape[1] exceeds width of a, guarantee width of output
-        # is same as a. This could happen when a layer's output (b) feeds into
-        # multiple layers, but some layers don't need all positions of b
-        # (can happen near the edges).
-        # See test_skip_then_mxp of test/test_simple_skip_conn_architectures.py
+        """
+        GOAL: a[:,i:min(i+b.shape[1], a.shape[1])] = b
+        clip b if i+b.shape[1] exceeds width of a, guarantee width of output
+        is same as a. This could happen when a layer's output (b) feeds into
+        multiple layers, but some layers don't need all positions of b
+        (can happen near the edges).
+        See test_skip_then_mxp of test/test_simple_skip_conn_architectures.py
+
+        :param inputs: [description]
+        :type inputs: [type]
+        :return: [description]
+        :rtype: [type]
+        """
 
         a, b, i = inputs
 
@@ -787,4 +794,4 @@ def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
         model, nodes, edges, inbound_edges, output_nodes, node_to_segment,
         alternate_input_segment_idxs, segments)
 
-    return intout_model, intout_output_tensors, fast_ism_model, input_specs
+    return output_nodes, intout_model, intout_output_tensors, fast_ism_model, input_specs
