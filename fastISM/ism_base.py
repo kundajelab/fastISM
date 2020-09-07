@@ -54,26 +54,27 @@ class ISMBase():
         # set up ism output tensors by intialising to unperturbed_output
         if self.num_outputs == 1:
             # batch_size x num_perturb x output_dim
-            ism_outputs = np.tile(np.expand_dims(unperturbed_output.numpy(), 1),
-                                  (1, len(self.change_ranges), 1))
+            ism_outputs = np.repeat(np.expand_dims(unperturbed_output.numpy(), 1),
+                                  len(self.change_ranges), 1)
         else:
+            ism_outputs = []
             for j in range(self.num_outputs):
-                ism_outputs[j] = np.tile(np.expand_dims(unperturbed_output[j].numpy(), 1),
-                                         (1, len(self.change_ranges), 1))
+                ism_outputs.append(np.repeat(np.expand_dims(unperturbed_output[j].numpy(), 1),
+                                           len(self.change_ranges), 1))
 
         for i, change_range in enumerate(self.change_ranges):
             # only run models on seqs that are being perturbed
             if self.num_inputs == 1:
-                idxs_to_mutate = tf.squeeze(tf.where(tf.squeeze(tf.reduce_all(
-                    inp_batch[:, change_range[0]:change_range[1]] != self.perturbation[0], -1))))
+                idxs_to_mutate = tf.squeeze(tf.where(tf.reduce_all(
+                    inp_batch[:, change_range[0]:change_range[1]] != self.perturbation[0], axis=(1,2))))
             else:
-                idxs_to_mutate = tf.squeeze(tf.where(tf.squeeze(tf.reduce_all(
-                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] != self.perturbation[0], -1))))
+                idxs_to_mutate = tf.squeeze(tf.where(tf.reduce_all(
+                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] != self.perturbation[0], axis=(1,2))))
 
             # output only on idxs_to_mutate
             ism_ith_output = self.get_ith_output(inp_batch, i, idxs_to_mutate)
-
-            if self.num_outputs == 1:
+            
+            if self.num_outputs == 1:                
                 ism_outputs[idxs_to_mutate, i] = ism_ith_output.numpy()
             else:
                 for j in range(self.num_outputs):
@@ -121,6 +122,6 @@ class NaiveISM(ISMBase):
                                                                                  self.change_ranges[i][1]:],
                     ], axis=1))
                 else:
-                    ism_input.append(inp_batch[j][idxs_to_mutate])
+                    ism_input.append(tf.gather(inp_batch[j], idxs_to_mutate))
 
         return self.model(ism_input, training=False)

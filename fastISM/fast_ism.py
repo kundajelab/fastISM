@@ -9,7 +9,7 @@ class FastISM(ISMBase):
     def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0, test_correctness=True):
         super().__init__(model, seq_input_idx, change_ranges, replace_with)
 
-        self.intermediate_output_model, self.intout_output_tensors, \
+        self.output_nodes, self.intermediate_output_model, self.intout_output_tensors, \
             self.fast_ism_model, self.input_specs = generate_models(
                 self.model, self.seqlen, self.num_chars, self.seq_input_idx,
                 self.change_ranges)
@@ -31,6 +31,13 @@ class FastISM(ISMBase):
 
         self.padded_inputs = self.prepare_intout_output(
             intout_output, num_seqs)  # better name than padded?
+
+        # return output on unperturbed input
+        if self.num_outputs == 1:
+            return intout_output[self.intout_output_tensor_to_idx[self.output_nodes[0]]]
+        else:
+            return [intout_output[self.intout_output_tensor_to_idx[self.output_nodes[i]]] for
+                    i in range(self.num_outputs)]
 
     def prepare_intout_output(self, intout_output, num_seqs):
         inputs = []
@@ -57,24 +64,25 @@ class FastISM(ISMBase):
 
         return inputs
 
-    def get_ith_output(self, inp_batch, i):
-        fast_ism_inputs = self.prepare_ith_input(self.padded_inputs, i)
+    def get_ith_output(self, inp_batch, i, idxs_to_mutate):
+        fast_ism_inputs = self.prepare_ith_input(self.padded_inputs, i, idxs_to_mutate)
 
         return self.fast_ism_model(fast_ism_inputs, training=False)
 
-    def prepare_ith_input(self, padded_inputs, i):
+    def prepare_ith_input(self, padded_inputs, i, idxs_to_mutate):
+        num_to_mutate = idxs_to_mutate.shape[0]
         inputs = []
 
         for input_idx, input_spec in enumerate(self.input_specs):
             if input_spec[0] == "SEQ_PERTURB":
-                inputs.append(padded_inputs[input_idx])
+                inputs.append(padded_inputs[input_idx][:num_to_mutate])
             elif input_spec[0] == "INTOUT_SEQ":
                 # slice
                 inputs.append(
-                    padded_inputs[input_idx][:,
+                    tf.gather(padded_inputs[input_idx], idxs_to_mutate)[:,
                                              input_spec[1]['slices'][i][0]: input_spec[1]['slices'][i][1]])
             elif input_spec[0] == "INTOUT_ALT":
-                inputs.append(padded_inputs[input_idx])
+                inputs.append(tf.gather(padded_inputs[input_idx], idxs_to_mutate))
             elif input_spec[0] == "OFFSET":
                 inputs.append(input_spec[1]['offsets'][i])
             else:
@@ -101,13 +109,15 @@ class FastISM(ISMBase):
         # test batch
         if self.num_inputs == 1:
             x = tf.constant(np.random.random(
-                (batch_size,) + self.model.input_shape[1:]))
+                (batch_size,) + self.model.input_shape[1:]),
+                dtype=self.model.inputs[self.seq_input_idx].dtype)
         else:
             x = []
             for j in range(self.num_inputs):
                 x.append(
                     tf.constant(np.random.random(
-                (batch_size,) + self.model.input_shape[j][1:]))
+                        (batch_size,) + self.model.input_shape[j][1:]),
+                        dtype=self.model.inputs[j].dtype)
                 )
 
         naive_out = naive_ism(x)
