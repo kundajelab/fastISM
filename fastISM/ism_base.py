@@ -61,26 +61,26 @@ class ISMBase():
             for j in range(self.num_outputs):
                 ism_outputs.append(np.repeat(np.expand_dims(unperturbed_output[j].numpy(), 1),
                                            len(self.change_ranges), 1))
-
+        
         for i, change_range in enumerate(self.change_ranges):
             # only run models on seqs that are being perturbed
             if self.num_inputs == 1:
-                idxs_to_mutate = tf.squeeze(tf.where(tf.reduce_all(
-                    inp_batch[:, change_range[0]:change_range[1]] != self.perturbation[0], axis=(1,2))))
+                idxs_to_mutate = tf.squeeze(tf.where(tf.logical_not(tf.reduce_all(
+                    inp_batch[:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1,2)))))
             else:
-                idxs_to_mutate = tf.squeeze(tf.where(tf.reduce_all(
-                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] != self.perturbation[0], axis=(1,2))))
+                idxs_to_mutate = tf.squeeze(tf.where(tf.logical_not(tf.reduce_all(
+                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1,2)))))
 
             # output only on idxs_to_mutate
             ism_ith_output = self.get_ith_output(inp_batch, i, idxs_to_mutate)
             
             if self.num_outputs == 1:                
-                ism_outputs[idxs_to_mutate, i] = ism_ith_output.numpy()
+                ism_outputs[idxs_to_mutate, i] = ism_ith_output
             else:
                 for j in range(self.num_outputs):
                     ism_outputs[j][idxs_to_mutate,
                                    i] = ism_ith_output[j].numpy()
-
+        
         return ism_outputs
 
     def pre_change_range_loop_prep(self, inp_batch, num_seqs):
@@ -96,7 +96,8 @@ class NaiveISM(ISMBase):
 
     def pre_change_range_loop_prep(self, inp_batch, num_seqs):
         self.cur_perturbation = tf.tile(self.perturbation, [num_seqs, 1, 1])
-        return self.model(inp_batch)
+        
+        return self.model(inp_batch, training=False)
 
     def get_ith_output(self, inp_batch, i, idxs_to_mutate):
         num_to_mutate = idxs_to_mutate.shape[0]
@@ -104,11 +105,11 @@ class NaiveISM(ISMBase):
         # prep input with ith change range mutation
         if self.num_inputs == 1:
             ism_input = tf.concat([
-                tf.gather(inp_batch, idxs_to_mutate)[
-                    :, :self.change_ranges[i][0]],
+                tf.gather(inp_batch[
+                    :, :self.change_ranges[i][0]], idxs_to_mutate),
                 self.cur_perturbation[:num_to_mutate],
-                tf.gather(inp_batch, idxs_to_mutate)[
-                    :, self.change_ranges[i][1]:],
+                tf.gather(inp_batch[
+                    :, self.change_ranges[i][1]:], idxs_to_mutate)
             ], axis=1)
         else:
             ism_input = []
@@ -123,5 +124,5 @@ class NaiveISM(ISMBase):
                     ], axis=1))
                 else:
                     ism_input.append(tf.gather(inp_batch[j], idxs_to_mutate))
-
+        
         return self.model(ism_input, training=False)
