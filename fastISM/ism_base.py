@@ -80,6 +80,9 @@ class ISMBase():
                 for j in range(self.num_outputs):
                     ism_outputs[j][idxs_to_mutate,
                                    i] = ism_ith_output[j].numpy()
+
+        # cleanup tensors that have been used
+        self.cleanup()
         
         return ism_outputs
 
@@ -93,7 +96,7 @@ class ISMBase():
 class NaiveISM(ISMBase):
     def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0):
         super().__init__(model, seq_input_idx, change_ranges, replace_with)
-
+    
     def pre_change_range_loop_prep(self, inp_batch, num_seqs):
         self.cur_perturbation = tf.tile(self.perturbation, [num_seqs, 1, 1])
         
@@ -126,3 +129,6 @@ class NaiveISM(ISMBase):
                     ism_input.append(tf.gather(inp_batch[j], idxs_to_mutate))
         
         return self.model(ism_input, training=False)
+    
+    def cleanup(self):
+        pass 

@@ -92,6 +92,11 @@ class FastISM(ISMBase):
 
         return inputs
 
+    def cleanup(self):
+        # padded inputs no longer required, take up GPU memory
+        # if not deleted, have led to memory leaks
+        del self.padded_inputs
+        
     def test_correctness(self, batch_size=10, atol=1e-6):
         """
         Verify that outputs are correct by matching with Naive ISM. Running on small
