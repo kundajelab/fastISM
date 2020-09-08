@@ -6,8 +6,8 @@ import numpy as np
 
 
 class FastISM(ISMBase):
-    def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0, test_correctness=True):
-        super().__init__(model, seq_input_idx, change_ranges, replace_with)
+    def __init__(self, model, seq_input_idx=0, change_ranges=None, test_correctness=True):
+        super().__init__(model, seq_input_idx, change_ranges)
 
         self.output_nodes, self.intermediate_output_model, self.intout_output_tensors, \
             self.fast_ism_model, self.input_specs = generate_models(
@@ -97,7 +97,7 @@ class FastISM(ISMBase):
         # if not deleted, have led to memory leaks
         del self.padded_inputs
         
-    def test_correctness(self, batch_size=10, atol=1e-6):
+    def test_correctness(self, batch_size=10, replace_with=0, atol=1e-6):
         """
         Verify that outputs are correct by matching with Naive ISM. Running on small
         examples so as to not take too long. 
@@ -110,7 +110,7 @@ class FastISM(ISMBase):
 
         # TODO: better way to do this?
         naive_ism = NaiveISM(self.model, self.seq_input_idx,
-                             self.change_ranges, self.replace_with)
+                             self.change_ranges)
 
         # test batch
         if self.num_inputs == 1:
@@ -126,8 +126,8 @@ class FastISM(ISMBase):
                         dtype=self.model.inputs[j].dtype)
                 )
 
-        naive_out = naive_ism(x)
-        fast_out = self(x)
+        naive_out = naive_ism(x, replace_with=replace_with)
+        fast_out = self(x, replace_with=replace_with)
 
         if self.num_outputs == 1:
             return np.all(np.isclose(naive_out, fast_out, atol=atol))

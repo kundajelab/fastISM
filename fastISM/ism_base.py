@@ -3,7 +3,7 @@ import numpy as np
 
 
 class ISMBase():
-    def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0):
+    def __init__(self, model, seq_input_idx=0, change_ranges=None):
         # check if model is supported by current implementation
         self.model = model
         self.num_outputs = len(model.outputs)
@@ -15,13 +15,6 @@ class ISMBase():
         self.seqlen = seq_input.shape[1]
         self.num_chars = seq_input.shape[2]
 
-        self.replace_with = replace_with
-        if self.replace_with != 0:
-            self.replace_with = np.array(replace_with)
-            if self.replace_with.ndim == 1:
-                self.replace_with = np.expand_dims(self.replace_with, 0)
-            assert(self.replace_with.ndim == 2)
-
         if change_ranges is None:
             # default would be mutations at each position, 1 bp wide
             change_ranges = [(i, i+1) for i in range(self.seqlen)]
@@ -30,18 +23,28 @@ class ISMBase():
 
         # only one input width allowed (currently)
         assert(len(set([x[1]-x[0] for x in change_ranges])) == 1)
-        perturb_width = change_ranges[0][1] - change_ranges[0][0]
+        self.perturb_width = change_ranges[0][1] - change_ranges[0][0]
+
+    def set_perturbation(self, replace_with):
+        self.replace_with = replace_with
+        if self.replace_with != 0:
+            self.replace_with = np.array(replace_with)
+            if self.replace_with.ndim == 1:
+                self.replace_with = np.expand_dims(self.replace_with, 0)
+            assert(self.replace_with.ndim == 2)
 
         if replace_with == 0:
             self.perturbation = tf.constant(
-                np.zeros((1, perturb_width, self.num_chars)),
+                np.zeros((1, self.perturb_width, self.num_chars)),
                 dtype=self.seq_dtype)
         else:
-            assert(self.replace_with.shape[0] == perturb_width)
+            assert(self.replace_with.shape[0] == self.perturb_width)
             self.perturbation = tf.constant(np.expand_dims(self.replace_with, 0),
                                             dtype=self.seq_dtype)
 
-    def __call__(self, inp_batch):
+    def __call__(self, inp_batch, replace_with=0):
+        self.set_perturbation(replace_with)
+
         if self.num_inputs == 1:
             num_seqs = inp_batch.shape[0]
         else:
@@ -55,26 +58,26 @@ class ISMBase():
         if self.num_outputs == 1:
             # batch_size x num_perturb x output_dim
             ism_outputs = np.repeat(np.expand_dims(unperturbed_output.numpy(), 1),
-                                  len(self.change_ranges), 1)
+                                    len(self.change_ranges), 1)
         else:
             ism_outputs = []
             for j in range(self.num_outputs):
                 ism_outputs.append(np.repeat(np.expand_dims(unperturbed_output[j].numpy(), 1),
-                                           len(self.change_ranges), 1))
-        
+                                             len(self.change_ranges), 1))
+
         for i, change_range in enumerate(self.change_ranges):
             # only run models on seqs that are being perturbed
             if self.num_inputs == 1:
                 idxs_to_mutate = tf.squeeze(tf.where(tf.logical_not(tf.reduce_all(
-                    inp_batch[:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1,2)))))
+                    inp_batch[:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1, 2)))))
             else:
                 idxs_to_mutate = tf.squeeze(tf.where(tf.logical_not(tf.reduce_all(
-                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1,2)))))
+                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1, 2)))))
 
             # output only on idxs_to_mutate
             ism_ith_output = self.get_ith_output(inp_batch, i, idxs_to_mutate)
-            
-            if self.num_outputs == 1:                
+
+            if self.num_outputs == 1:
                 ism_outputs[idxs_to_mutate, i] = ism_ith_output
             else:
                 for j in range(self.num_outputs):
@@ -83,7 +86,7 @@ class ISMBase():
 
         # cleanup tensors that have been used
         self.cleanup()
-        
+
         return ism_outputs
 
     def pre_change_range_loop_prep(self, inp_batch, num_seqs):
@@ -94,12 +97,12 @@ class ISMBase():
 
 
 class NaiveISM(ISMBase):
-    def __init__(self, model, seq_input_idx=0, change_ranges=None, replace_with=0):
-        super().__init__(model, seq_input_idx, change_ranges, replace_with)
-    
+    def __init__(self, model, seq_input_idx=0, change_ranges=None):
+        super().__init__(model, seq_input_idx, change_ranges)
+
     def pre_change_range_loop_prep(self, inp_batch, num_seqs):
         self.cur_perturbation = tf.tile(self.perturbation, [num_seqs, 1, 1])
-        
+
         return self.model(inp_batch, training=False)
 
     def get_ith_output(self, inp_batch, i, idxs_to_mutate):
@@ -127,8 +130,8 @@ class NaiveISM(ISMBase):
                     ], axis=1))
                 else:
                     ism_input.append(tf.gather(inp_batch[j], idxs_to_mutate))
-        
+
         return self.model(ism_input, training=False)
-    
+
     def cleanup(self):
-        pass 
+        pass
