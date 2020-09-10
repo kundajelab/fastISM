@@ -41,6 +41,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # -- Added by Surag ---------------------------------------------------------
 pygments_style = 'colorful'
+master_doc = 'index'
 
 
 def format_set(s):
