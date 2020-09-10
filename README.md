@@ -1,9 +1,9 @@
-<img src="https://github.com/kundajelab/fastISM/blob/docs/images/logo.jpeg" width="250">
+![](https://github.com/kundajelab/fastISM/blob/docs/images/logo.jpeg)
 
 [![](https://img.shields.io/pypi/v/fastism.svg)](https://pypi.org/project/fastism/) [![](https://readthedocs.org/projects/fastism/badge/?version=latest)](https://fastism.readthedocs.io/en/latest/?badge=latest)
 
 
-A Keras implementation for fast in-silico mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by only restricting computation to those regions of each layer that are affected by a mutation in the input.
+A Keras implementation for fast in-silico saturated mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by only restricting computation to those regions of each layer that are affected by a mutation in the input.
 
 ## Installation
 
