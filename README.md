@@ -1,6 +1,7 @@
 # fastISM
 
-[![PyPI version](https://img.shields.io/pypi/v/fastism.svg)](https://pypi.org/project/fastism/)
+[![PyPI version](https://img.shields.io/pypi/v/fastism.svg)](https://pypi.org/project/fastism/) [![Documentation Status](https://readthedocs.org/projects/fastism/badge/?version=latest)](https://fastism.readthedocs.io/en/latest/?badge=latest)
+
 
 A Keras implementation for fast in-silico mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by only restricting computation to those regions of each layer that are affected by a mutation in the input.
 
