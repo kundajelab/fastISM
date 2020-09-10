@@ -8,6 +8,13 @@ import pydot
 
 
 def is_input_layer(layer):
+    """Checks if layer is an input layer
+
+    :param layer: A Keras layer
+    :type layer: tf.keras.layers
+    :return: True if layer is input layer, else False
+    :rtype: bool
+    """
     return isinstance(layer, tf.keras.layers.InputLayer)
 
 
@@ -52,7 +59,16 @@ def is_consistent(edges, inbound_edges):
 
 
 def get_flattened_graph(model, is_subgraph=False):
-    # Inspired by: https://github.com/tensorflow/tensorflow/blob/b36436b087bd8e8701ef51718179037cccdfc26e/tensorflow/python/keras/utils/vis_utils.py#L70
+    """[summary]
+
+    :param model: [description]
+    :type model: [type]
+    :param is_subgraph: [description], defaults to False
+    :type is_subgraph: bool, optional
+    :return: [description]
+    :rtype: [type]
+    """
+    # Inspired by: https://github.com/tensorflow/tensorflow/blob/b36436b/tensorflow/python/keras/utils/vis_utils.py#L70
     # Wrapper support like in model_to_dot??
     # MORE comments
     # gets rid of intermediate inputlayers and makes graph bipartite

@@ -9,13 +9,14 @@ fastISM Documentation
 A Keras implementation for fast in-silico mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by only restricting computation to those regions of each layer that are affected by a mutation in the input.
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Contents:
 
    Quick Start <quickstart>
    Examples <examples>
    How it Works <explain>
    Supported Layers <layers>
+   API <api>
    Change Log <changelog>
    Citation <cite>
 
