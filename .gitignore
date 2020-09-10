@@ -9,6 +9,7 @@ __pycache__/
 # surag
 .vscode
 .DS_Store
+*.npy
 
 # Distribution / packaging
 .Python

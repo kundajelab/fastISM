@@ -4,7 +4,7 @@ import unittest
 from context import fastISM
 
 
-class TestSimpleSingleInMultiOutArchitectures(unittest.TestCase):
+class TestSimpleSkipConnArchitectures(unittest.TestCase):
     def test_conv_add_two_fc(self):
         # inp -> C -> C-> Add -> D -> y
         #          |_______^
@@ -42,15 +42,15 @@ class TestSimpleSingleInMultiOutArchitectures(unittest.TestCase):
     def test_skip_then_mxp(self):
         #          _________
         #          ^       |
-        # inp -> C ->  C-> Add ->  MXP -> D -> y
-        #
+        # inp -> C ->  C-> Add ->  MXP -> [without Flatten!] D -> y
+        # y has output dim [32,5] per example
         inp = tf.keras.Input((100, 4))
         x = tf.keras.layers.Conv1D(20, 3)(inp)
         x1 = tf.keras.layers.Conv1D(20, 3, padding='same')(x)
         x1 = tf.keras.layers.Add()([x, x1])
         x2 = tf.keras.layers.MaxPooling1D(3)(x1)
 
-        y = tf.keras.layers.Dense(1)(x2)
+        y = tf.keras.layers.Dense(5)(x2)
         model = tf.keras.Model(inputs=inp, outputs=y)
 
         fast_ism_model = fastISM.FastISM(
