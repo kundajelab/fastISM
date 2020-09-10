@@ -1,4 +1,4 @@
-![](https://github.com/kundajelab/fastISM/blob/docs/images/logo.jpeg)
+![](https://github.com/kundajelab/fastISM/raw/docs/images/logo.jpeg)
 
 [![](https://img.shields.io/pypi/v/fastism.svg)](https://pypi.org/project/fastism/) [![](https://readthedocs.org/projects/fastism/badge/?version=latest)](https://fastism.readthedocs.io/en/latest/?badge=latest)
 
