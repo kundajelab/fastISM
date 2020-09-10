@@ -1,4 +1,4 @@
-<img src="images/logo.jpeg" width="250">
+<img src="https://github.com/kundajelab/fastISM/blob/docs/images/logo.jpeg" width="250">
 
 [![](https://img.shields.io/pypi/v/fastism.svg)](https://pypi.org/project/fastism/) [![](https://readthedocs.org/projects/fastism/badge/?version=latest)](https://fastism.readthedocs.io/en/latest/?badge=latest)
 
