@@ -76,4 +76,4 @@ fastISM supports the most commonly used subset of Keras for biological sequence-
 - Cropping1D support
 
 ## Citation
-**TODO**
+In preparation

@@ -3,15 +3,57 @@ Examples
 
 This section covers some of the common use cases and functionalities of fastISM.
 
-Alternate Mutation
-------------------
-By default, inputs at the ith position are set to zero. **TODO**
+fastISM provides a simple interface that takes as input Keras model For any Keras ``model`` that takes in sequence as input of dimensions ``(B, S, C)``, where 
 
-Alternate Range
+- ``B``: batch size
+- ``S``: sequence length
+- ``C``: number of characters in vocabulary (e.g. 4 for DNA/RNA, 20 for proteins)
+
+Alternate Mutations
+-------------------
+By default, inputs at the ith position are set to zero. It is possible to specify mutations of interest by passing them to ``replace_with`` in the call to the fastISM model. To perform ISM with all possible mutations for DNA:
+
+.. code-block:: python
+
+    fast_ism_model = FastISM(model)
+
+    mutations = [[1,0,0,0],
+                 [0,1,0,0],
+                 [0,0,1,0],
+                 [0,0,0,1]]
+
+    for seq_batch in sequences:
+        # seq_batch has dim (B, S, C)
+        for m in mutations:
+            ism_seq_batch = fast_ism_model(seq_batch, replace_with=m)
+            # ism_seq_batch has dim (B, S, num_outputs) 
+            # process/store ism_seq_batch
+
+Each ``ism_seq_batch`` has the same dimensions ``(B, S, num_outputs)``. The outputs of the model are computed on the mutations only for those positions where the base differs from the mutation. Where the base is the same as the mutation, the output is the same as for the unperturbed sequence.
+
+Alternate Ranges
 ----------------
-Can also set range of inputs instead of single positions.
+By default, mutations are introduced at every single position in the input. You can also set a list of equal-sized ranges as input instead of single positions. Consider a model that takes as input 1000 length sequences, and we wish to introduce a specific mutation of length 3 in the central 150 positions:
 
-Multi-input models
+**TODO**: test this
+
+.. code-block:: python
+
+    # specific mutation to introduce
+    mut = [[0,0,0,1],
+           [0,0,0,1],
+           [0,0,0,w1]]
+    
+    # ranges where mutation should be introduced
+    mut_ranges = [(i,i+3) for i in range(425,575)]
+    
+    fast_ism_model = FastISM(model, 
+                             change_ranges = mut_ranges)
+
+    for seq_batch in sequences:
+        ism_seq_batch = fast_ism_model(seq_batch, replace_with=mut)   
+
+Multi-input Models
 ------------------
 fastISM supports models which have other inputs in addition to the sequence input that is perturbed. These alternate inputs are assumed to stay constant through different perturbations of the primary sequence input. Consider the model below in which an addition vector is concatenated with the flattened sequence output:
 
@@ -54,7 +96,7 @@ Then to obtain the outputs:
 
 **NOTE**: Currently, multi-input models in which descendants of alternate inputs interact directly with descendants of primary sequence input *before* a :ref:`Stop Layer <stop-layers>` are not supported, i.e. a descendant of an alternate input in general should only interact with a flattened version of primary input sequence.
 
-Recursively Defined models
+Recursively Defined Models
 --------------------------
 Keras allows defining models in a nested fashion. As such, recursively defined models should not pose an issue to fastISM. The example below works:
 
