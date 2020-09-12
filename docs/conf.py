@@ -18,7 +18,7 @@ from fastISM.fast_ism_utils import *
 # -- Project information -----------------------------------------------------
 
 project = 'fastISM'
-copyright = '2020, Surag Nair'
+copyright = '2020, Kundaje Lab'
 author = 'Surag Nair'
 
 

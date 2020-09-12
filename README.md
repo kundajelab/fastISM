@@ -33,7 +33,7 @@ for seq_batch in sequences:
     # ism_seq_batch has dim (B, S, num_outputs) 
 ```
 
-fastISM does a check for correctness when the model is initialised, which may take a few seconds depending on the size of your model. This ensures that the outputs of the model match that of an unoptimised implementation. You can turn it off as `FastISM(model, test_correctness=False)`. fastISM also supports models with multiple outputs. Check the [Examples](https://fastism.readthedocs.io/en/latest/examples.html) section of the documentation for more details.
+fastISM does a check for correctness when the model is initialised, which may take a few seconds depending on the size of your model. This ensures that the outputs of the model match that of an unoptimised implementation. You can turn it off as `FastISM(model, test_correctness=False)`. fastISM also supports introducing specific mutations, mutating different ranges of the input sequence, and models with multiple outputs, . Check the [Examples](https://fastism.readthedocs.io/en/latest/examples.html) section of the documentation for more details.
 
 ## Benchmark
 You can estimate the speedup obtained by comparing with a naive implementation of ISM.
@@ -67,10 +67,10 @@ True
 >>> np.allclose(fast_out, naive_out, atol=1e-6) 
 True # np.allclose is not symmetric
 ```
-**TODO** Add benchmarking utilities.
+**TODO** Add benchmarking utilities. Note on warm-up.
 
 ## Getting Help
-fastISM supports the most commonly used subset of Keras for biological sequence-based models. Occasionally, you may find that some of the layers used in your model are not supported by fastISM (Supported Layers section in Documentation). In a few cases, the fastISM model may fail correctness checks, indicating there are likely some issues in the fastISM code. In both such cases or any other bugs, feel free to reach out to the author by posting an [Issue](https://github.com/kundajelab/fastISM/issues) on GitHub along with your architecture, and we'll try to work out a solution!
+fastISM supports the most commonly used subset of Keras for biological sequence-based models. Occasionally, you may find that some of the layers used in your model are not supported by fastISM [Supported Layers](https://fastism.readthedocs.io/en/latest/layers.html) section in Documentation). In a few cases, the fastISM model may fail correctness checks, indicating there are likely some issues in the fastISM code. In both such cases or any other bugs, feel free to reach out to the author by posting an [Issue](https://github.com/kundajelab/fastISM/issues) on GitHub along with your architecture, and we'll try to work out a solution!
 
 ## Coming Soon
 - Cropping1D support

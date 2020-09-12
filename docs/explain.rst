@@ -1,3 +1,5 @@
+.. _explain:
+
 How fastISM Works
 =================
 
