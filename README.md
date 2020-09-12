@@ -33,7 +33,7 @@ for seq_batch in sequences:
     # ism_seq_batch has dim (B, S, num_outputs) 
 ```
 
-fastISM does a check for correctness when the model is initialised, which may take a few seconds depending on the size of your model. This ensures that the outputs of the model match that of an unoptimised implementation. You can turn it off as `FastISM(model, test_correctness=False)`. fastISM also supports models with multiple outputs.
+fastISM does a check for correctness when the model is initialised, which may take a few seconds depending on the size of your model. This ensures that the outputs of the model match that of an unoptimised implementation. You can turn it off as `FastISM(model, test_correctness=False)`. fastISM also supports models with multiple outputs. Check the [Examples](https://fastism.readthedocs.io/en/latest/examples.html) section of the documentation for more details.
 
 ## Benchmark
 You can estimate the speedup obtained by comparing with a naive implementation of ISM.

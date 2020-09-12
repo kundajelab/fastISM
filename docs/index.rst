@@ -3,10 +3,13 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+.. image:: https://github.com/kundajelab/fastISM/raw/docs/images/logo.jpeg
+   :target: https://github.com/kundajelab/fastISM
+
 fastISM Documentation
 =====================
 
-A Keras implementation for fast in-silico mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by only restricting computation to those regions of each layer that are affected by a mutation in the input.
+A Keras implementation for fast in-silico saturated mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by only restricting computation to those regions of each layer that are affected by a mutation in the input.
 
 .. toctree::
    :maxdepth: 2

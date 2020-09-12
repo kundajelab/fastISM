@@ -42,7 +42,7 @@ By default, mutations are introduced at every single position in the input. You 
     # specific mutation to introduce
     mut = [[0,0,0,1],
            [0,0,0,1],
-           [0,0,0,w1]]
+           [0,0,0,1]]
     
     # ranges where mutation should be introduced
     mut_ranges = [(i,i+3) for i in range(425,575)]
