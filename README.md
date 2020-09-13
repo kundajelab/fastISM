@@ -4,7 +4,7 @@
 
 # Quickstart
 
-A Keras implementation for fast in-silico saturated mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by only restricting computation to those regions of each layer that are affected by a mutation in the input.
+A Keras implementation for fast in-silico saturated mutagenesis (ISM) for convolution-based architectures. It speeds up ISM by 10x or more by restricting computation to those regions of each layer that are affected by a mutation in the input.
 
 ## Installation
 
