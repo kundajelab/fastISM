@@ -56,7 +56,7 @@ You can estimate the speedup obtained by comparing with a naive implementation o
         return o
 
 >>> x = tf.random.uniform((1024, 1000, 4),
-                          dtype=tf.dtypes.float64)
+                          dtype=model.input.dtype)
 
 >>> naive_out = time_ism(naive_ism_model, x)
 144.013728
