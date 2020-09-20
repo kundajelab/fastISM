@@ -33,7 +33,7 @@ for seq_batch in sequences:
     # ism_seq_batch has dim (B, S, num_outputs) 
 ```
 
-fastISM does a check for correctness when the model is initialised, which may take a few seconds depending on the size of your model. This ensures that the outputs of the model match that of an unoptimised implementation. You can turn it off as `FastISM(model, test_correctness=False)`. fastISM also supports introducing specific mutations, mutating different ranges of the input sequence, and models with multiple outputs. Check the [Examples](https://fastism.readthedocs.io/en/latest/examples.html) section of the documentation for more details.
+fastISM does a check for correctness when the model is initialised, which may take a few seconds depending on the size of your model. This ensures that the outputs of the model match that of an unoptimised implementation. You can turn it off as `FastISM(model, test_correctness=False)`. fastISM also supports introducing specific mutations, mutating different ranges of the input sequence, and models with multiple outputs. Check the [Examples](https://fastism.readthedocs.io/en/latest/examples.html) section of the documentation for more details. An executable tutorial is available on [Colab](https://colab.research.google.com/github/kundajelab/fastISM/blob/master/notebooks/colab/DeepSEA.ipynb).
 
 ## Benchmark
 You can estimate the speedup obtained by comparing with a naive implementation of ISM.
@@ -56,7 +56,7 @@ You can estimate the speedup obtained by comparing with a naive implementation o
         return o
 
 >>> x = tf.random.uniform((1024, 1000, 4),
-                          dtype=tf.dtypes.float64)
+                          dtype=model.input.dtype)
 
 >>> naive_out = time_ism(naive_ism_model, x)
 144.013728
