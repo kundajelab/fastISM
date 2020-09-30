@@ -17,6 +17,7 @@ A Keras implementation for fast in-silico saturated mutagenesis (ISM) for convol
 
    Quick Start <quickstart>
    Examples <examples>
+   Tutorial <tutorial>
    How it Works <explain>
    Supported Layers <layers>
    API <api>
