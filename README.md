@@ -15,7 +15,7 @@ pip install fastism
 
 ## Usage
 
-fastISM provides a simple interface that takes as input Keras model For any Keras ``model`` that takes in sequence as input of dimensions `(B, S, C)`, where
+fastISM provides a simple interface that takes as input Keras models. For any Keras ``model`` that takes in sequence as input of dimensions `(B, S, C)`, where
 - `B`: batch size
 - `S`: sequence length
 - `C`: number of characters in vocabulary (e.g. 4 for DNA/RNA, 20 for proteins)
