@@ -306,8 +306,6 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
     segments_to_process_input_change_ranges = defaultdict(list)
 
     # initialise with input tensor, which has segment idx 0
-    # only sequence input tensor should be in segment 0
-    assert(sum([node_to_segment[x] == 0 for x in node_to_segment]) == 1)
     segments_to_process.append((0, input_tensor))
     segments_to_process_input_seqlens[0] = [input_seqlen]
     segments_to_process_input_filters[0] = [input_filters]

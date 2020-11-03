@@ -223,11 +223,13 @@ class TestSimpleSingleInSingleOutArchitectures(unittest.TestCase):
 
         self.assertTrue(fast_ism_model.test_correctness())
 
-    def test_four_conv_maxpool_two_fc_4_10bp_change_range(self):
-        # inp -> C -> MXP -> C -> MXP -> C -> MXP -> C -> MXP -> D -> D -> y
+    def test_pre_act_four_conv_maxpool_two_fc_4_10bp_change_range(self):
+        # inp -> tanh -> C -> MXP -> C -> MXP -> C -> MXP -> C -> MXP -> D -> D -> y
         # with Dropout and GlobalAveragePoolng1D
+        # activation before first conv!
         inp = tf.keras.Input((200, 4))
-        x = tf.keras.layers.Conv1D(10, 5, use_bias=False, padding='same')(inp)
+        x = tf.keras.layers.Activation("tanh")(inp)
+        x = tf.keras.layers.Conv1D(10, 5, use_bias=False, padding='same')(x)
         x = tf.keras.layers.MaxPooling1D(2)(x)
         x = tf.keras.layers.Conv1D(
             25, 4, padding='same', activation='relu')(inp)
@@ -251,12 +253,14 @@ class TestSimpleSingleInSingleOutArchitectures(unittest.TestCase):
 
         self.assertTrue(fast_ism_model.test_correctness())
 
-    def test_four_conv_maxpool_two_fc_4_sequential(self):
-        # inp -> C -> MXP -> C -> MXP -> C -> MXP -> C -> MXP -> D -> D -> y
+    def test_pre_act_four_conv_maxpool_two_fc_4_sequential(self):
+        # inp -> tanh -> C -> MXP -> C -> MXP -> C -> MXP -> C -> MXP -> D -> D -> y
         # with Dropout and GlobalAveragePoolng1D
+        # activation before first conv!
         # same as above but with Sequential
         model = tf.keras.Sequential()
         model.add(tf.keras.Input((200, 4)))
+        model.add(tf.keras.layers.Activation("tanh"))
         model.add(tf.keras.layers.Conv1D(
             10, 5, use_bias=False, padding='same'))
         model.add(tf.keras.layers.MaxPooling1D(2))
