@@ -85,29 +85,22 @@ class SliceAssign(tf.keras.layers.Layer):
         """
 
         a, b, i = inputs
+        
+        # i<0
+        def case1():
+            return tf.concat([b[:, -i[0]:],
+                              a[:, tf.math.maximum(self.b_dim+i[0], 0):]],
+                             axis=1)
 
-        # i<0, |i[0]| < b_dim
-        def case11():
-            return tf.concat([b[:, -i[0]:], a[:, self.b_dim+i[0]:]], axis=1)
-
-        # i<0, |i[0]| >= b_dim
-        def case12():
-            return a
-
-        # i>=0, b fits within a
-        def case21():
-            return tf.concat([a[:, :i[0]], b, a[:, i[0]+self.b_dim:]], axis=1)
-
-        # i>=0, b does not fit within a, cut it off
-        def case22():
-            return tf.concat([a[:, :i[0]], b[:, :self.a_dim-i[0]]], axis=1)
+        # i>=0, b fits within a or goes past it and is cut
+        def case2():
+            return tf.concat([a[:, :i[0]],
+                              b[:, :tf.math.maximum(self.a_dim-i[0], 0)],
+                              a[:, i[0]+self.b_dim:]],
+                             axis=1)
 
         # output will lose shape info (dim 1 will be set to None)
-        return tf.cond(i[0] < 0,
-                       lambda: tf.cond(-i[0] < self.b_dim,
-                                       case11, case12),
-                       lambda: tf.cond(i[0]+self.b_dim <= self.a_dim,
-                                       case21, case22))
+        return tf.cond(i[0] < 0, case1, case2)
 
 
 class GraphSegment():
