@@ -79,8 +79,14 @@ class ChangeRangesBase():
                     for x in change_ranges_objects_list[1:]]))
 
         # modified range_corrected should span at least the initial range
-        assert(all([x_new <= x_old for (x_new, y_new), (x_old, y_old) in zip(
-            input_range_corrected, initial_input_range_corrected)]))
+        # unless a Cropping1D layer is present, in which case this does not
+        # need to hold true (e.g. at the edges the initial range can be cropped out)
+        # this may also happen if MaxPooling1D is placed in a segment of its own
+        # e.g. segment 0 before any other conv -- this is not handled for now
+        if not any([isinstance(x, Cropping1DChangeRanges) for
+                    x in change_ranges_objects_list]):            
+            assert(all([x_new <= x_old for (x_new, y_new), (x_old, y_old) in zip(
+                input_range_corrected, initial_input_range_corrected)]))
 
         return input_range_corrected, initial_padding, seqlen, affected_range
 
@@ -140,7 +146,7 @@ class Conv1DChangeRanges(ChangeRangesBase):
         # account for edge effects
         input_range_corrected = []
         for x, y in input_change_range_padded:
-            # this can happen e.g. in dilated convs where the effective 
+            # this can happen e.g. in dilated convs where the effective
             # width gets as wide as input sequence
             if y-x > seqlen_with_padding:
                 #import pdb;pdb.set_trace()
@@ -205,7 +211,7 @@ class MaxPooling1DChangeRanges(ChangeRangesBase):
         # assuming input ranges have same width
         if (len(set([y-x for x, y in input_change_ranges])) != 1):
             not_supported_error("Input Change Ranges of different sizes")
-            
+
         # shift to edges of nearest maxpool block
         input_change_range_shifted = [(self.pool_size*(x//self.pool_size),
                                        self.pool_size*ceil(y/self.pool_size)) for
@@ -241,3 +247,43 @@ class MaxPooling1DChangeRanges(ChangeRangesBase):
     def backward(self, output_select_ranges):
         assert(len(set([y-x for x, y in output_select_ranges])) == 1)
         return [(x*self.pool_size, y*self.pool_size) for x, y in output_select_ranges]
+
+
+class Cropping1DChangeRanges(ChangeRangesBase):
+    def __init__(self, config):
+        ChangeRangesBase.__init__(self, config)
+        self.cropping = self.config['cropping']
+
+    def validate_config(self):
+        # all configs accepted
+        return True
+
+    def forward(self, input_seqlen, input_change_ranges):
+        # assuming input ranges have same width
+        if (len(set([y-x for x, y in input_change_ranges])) != 1):
+            not_supported_error("Input Change Ranges of different sizes")
+
+        # push right if within left cropping
+        input_range_corrected = [(x, y) if x >= self.cropping[0] else
+                                 (self.cropping[0], self.cropping[0] + (y-x))
+                                 for x, y in input_change_ranges]
+
+        # push left if within right cropping
+        right_edge = (input_seqlen-self.cropping[1])
+        input_range_corrected = [(x, y) if y < right_edge else
+                                 (right_edge - (y-x), right_edge)
+                                 for x, y in input_range_corrected]
+
+        output_affected_ranges = [(x-self.cropping[0], y-self.cropping[0]) for
+                                  (x, y) in input_range_corrected]
+
+        outseqlen = input_seqlen - sum(self.cropping)
+
+        assert(len(set([y-x for x, y in input_range_corrected])) == 1)
+
+        # (0,0) for no padding
+        return input_range_corrected, (0, 0), outseqlen, output_affected_ranges
+
+    def backward(self, output_select_ranges):
+        assert(len(set([y-x for x, y in output_select_ranges])) == 1)
+        return [(x+self.cropping[0], y+self.cropping[0]) for x, y in output_select_ranges]
