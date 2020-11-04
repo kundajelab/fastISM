@@ -169,7 +169,7 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges,
 
     # already segmented
     if current_node in node_to_segment:
-        return node_to_segment, stop_segment_idxs, segment_idx
+        return node_to_segment, stop_segment_idxs, segment_idx+1
 
     if flatten_model.node_is_layer(current_node):
         layer_class = nodes[current_node].__class__.__name__
