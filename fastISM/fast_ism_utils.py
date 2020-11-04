@@ -3,7 +3,11 @@ from . import flatten_model
 from collections import defaultdict
 from copy import deepcopy
 
-from .change_range import ChangeRangesBase, Conv1DChangeRanges, MaxPooling1DChangeRanges, not_supported_error
+from .change_range import ChangeRangesBase, \
+    Conv1DChangeRanges, \
+    MaxPooling1DChangeRanges, \
+    Cropping1DChangeRanges, \
+    not_supported_error
 
 # Union of layers below gives all supported layers.
 
@@ -35,7 +39,8 @@ AGGREGATE_LAYERS = {
 # layers at which output at ith position depends on a window around the ith position
 LOCAL_LAYERS = {
     'Conv1D',
-    'MaxPooling1D'
+    'MaxPooling1D',
+    'Cropping1D'
 }
 
 # layers after which output at ith position depends on inputs at most or all positions
@@ -70,6 +75,9 @@ class SliceAssign(tf.keras.layers.Layer):
         (can happen near the edges).
         See test_skip_then_mxp of test/test_simple_skip_conn_architectures.py
 
+        For Cropping1D layers, i can also be negative, which needs to be handled
+        separately.
+
         :param inputs: [description]
         :type inputs: [type]
         :return: [description]
@@ -78,11 +86,28 @@ class SliceAssign(tf.keras.layers.Layer):
 
         a, b, i = inputs
 
+        # i<0, |i[0]| < b_dim
+        def case11():
+            return tf.concat([b[:, -i[0]:], a[:, self.b_dim+i[0]:]], axis=1)
+
+        # i<0, |i[0]| >= b_dim
+        def case12():
+            return a
+
+        # i>=0, b fits within a
+        def case21():
+            return tf.concat([a[:, :i[0]], b, a[:, i[0]+self.b_dim:]], axis=1)
+
+        # i>=0, b does not fit within a, cut it off
+        def case22():
+            return tf.concat([a[:, :i[0]], b[:, :self.a_dim-i[0]]], axis=1)
+
         # output will lose shape info (dim 1 will be set to None)
-        return tf.cond(i[0]+self.b_dim <= self.a_dim,
-                       lambda: tf.concat(
-                           [a[:, :i[0]], b, a[:, i[0]+self.b_dim:]], axis=1),
-                       lambda: tf.concat([a[:, :i[0]], b[:, :self.a_dim-i[0]]], axis=1))
+        return tf.cond(i[0] < 0,
+                       lambda: tf.cond(-i[0] < self.b_dim,
+                                       case11, case12),
+                       lambda: tf.cond(i[0]+self.b_dim <= self.a_dim,
+                                       case21, case22))
 
 
 class GraphSegment():
@@ -190,6 +215,19 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges,
 
             # recursively label all descendants (no more further segments)
             return label_stop_descendants(current_node, nodes, edges, node_to_segment, segment_idx), stop_segment_idxs, segment_idx+1
+
+        elif (layer_class == 'MaxPooling1D' or layer_class == 'Cropping1D') \
+                and segment_idx == 0:
+            # special case for when a Cropping or MaxPooling1D layer is right
+            # after input sequence before first Conv1D
+            segment_idx += 1
+            node_to_segment[current_node] = segment_idx
+
+            assert(num_convs_in_cur_segment == 0)
+            return segment_subgraph(edges[current_node][0], nodes, edges,
+                                    inbound_edges, node_to_segment,
+                                    stop_segment_idxs, segment_idx,
+                                    num_convs_in_cur_segment)
 
         elif layer_class == 'Conv1D':
             # enforce that if a segment has a conv layer, it is always at the beginning
@@ -357,10 +395,10 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
             segment_filters = segments_to_process_input_filters[cur_segment_to_process][0]
 
             # for change ranges, take the largest range over all input ranges
-            # e.g. [[(1,3), (4,6)], [(2,4), (1,5)] -> [(1,4), (1,6)]
-            cur_input_change_ranges = [(min([x[0] for x in ranges]),
-                                        max([x[1] for x in ranges])) for ranges
-                                       in zip(*segments_to_process_input_change_ranges[cur_segment_to_process])]
+            # e.g. [ [(1,3), (4,6)], [(2,4), (4,5)] ] -> [(1,4), (3,6)]
+            # all should have the same length
+            cur_input_change_ranges = resolve_multi_input_change_ranges(
+                segments_to_process_input_change_ranges[cur_segment_to_process])
 
             segment = GraphSegment(cur_segment_tensor, cur_input_seqlen,
                                    cur_input_change_ranges)
@@ -384,6 +422,11 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                         elif layer_name == 'MaxPooling1D':
                             change_range_objects.append(MaxPooling1DChangeRanges(
                                 nodes[cur_segment_tensor].get_config()))
+
+                        elif layer_name == 'Cropping1D':
+                            change_range_objects.append(Cropping1DChangeRanges(
+                                nodes[cur_segment_tensor].get_config()))
+
                     elif (layer_name not in SEE_THROUGH_LAYERS) and \
                             (layer_name not in AGGREGATE_LAYERS):
                         raise not_supported_error(
@@ -425,6 +468,43 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                     cur_segment_tensor = edges[cur_segment_tensor][0]
 
     return segments
+
+
+def resolve_multi_input_change_ranges(input_change_ranges_list):
+    """For AGGREGATE_LAYERS such as Add, the different inputs have different
+    change ranges. For the change ranges, take the largest range over all 
+    input ranges:
+
+    e.g. [ [(1,3), (4,6)], [(2,4), (4,5)] ] -> [(1,4), (3,6)]
+           input1 -^         input2 -^
+
+    :param input_change_ranges_list: list of list of tuples. Inner lists must
+    have same length, where each ith tuple corresponds to ith mutation in the
+    input (ith input change range).
+    :type input_change_ranges_list: list[list[tuple]]
+    :return: Resolved input change ranges. All ranges must have the same width.
+    :rtype: list[tuple]
+    """
+
+    # change range lists should have the same length
+    assert(len(set([len(x) for x in input_change_ranges_list])) == 1)
+
+    # get maximal interval
+    # [ [(1,3), (4,6)], [(2,4), (4,5)] ] -> [(1,4), (4,6)]
+    input_change_ranges = [(min([x[0] for x in ranges]),
+                            max([x[1] for x in ranges])) for ranges
+                           in zip(*input_change_ranges_list)]
+
+    # adjust intervals to have same width
+    # [(1,4), (4,6)] -> [(1,4), (3,6)]
+    max_end = max([y for _, y in input_change_ranges])
+    max_width = max([y-x for x, y in input_change_ranges])
+
+    input_change_ranges = [(x, x+max_width) if x+max_width <= max_end else
+                           (max_end-max_width, max_end) for x, y
+                           in input_change_ranges]
+
+    return input_change_ranges
 
 
 def generate_intermediate_output_model(model, nodes, edges, inbound_edges,
@@ -635,29 +715,36 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
         # make the layer
         layer_name = nodes[parent_layer].__class__.__name__
 
-        if layer_name == 'Conv1D':
-            # Padding will be added externally
-            config['padding'] = 'valid'
-            layer = nodes[parent_layer].__class__(**config)
+        if layer_name == 'Cropping1D':
+            # do nothing, forward tensor
+            node_edge_to_tensor[(parent_layer, current_node)] = \
+                node_edge_to_tensor[(
+                    inbound_edges[parent_layer][0], parent_layer)]
 
-        elif layer_name == 'Flatten':
-            # this is necessary as SliceAssign loses dimension data
-            # and Flatten then shows shape as (None, None)
-            # which wreaks havoc downstream
-            layer = tf.keras.layers.Reshape(
-                nodes[parent_layer].output_shape[1:])
         else:
-            layer = nodes[parent_layer].__class__(**config)
+            if layer_name == 'Conv1D':
+                # Padding will be added externally
+                config['padding'] = 'valid'
+                layer = nodes[parent_layer].__class__(**config)
 
-        if len(inbound_edges[parent_layer]) == 1:
-            node_edge_to_tensor[(parent_layer, current_node)] = layer(
-                node_edge_to_tensor[(inbound_edges[parent_layer][0], parent_layer)])
-        else:
-            node_edge_to_tensor[(parent_layer, current_node)] = layer(
-                [node_edge_to_tensor[(n, parent_layer)] for n in inbound_edges[parent_layer]])
+            elif layer_name == 'Flatten':
+                # this is necessary as SliceAssign loses dimension data
+                # and Flatten then shows shape as (None, None)
+                # which wreaks havoc downstream
+                layer = tf.keras.layers.Reshape(
+                    nodes[parent_layer].output_shape[1:])
+            else:
+                layer = nodes[parent_layer].__class__(**config)
 
-        # set weights
-        layer.set_weights(nodes[parent_layer].get_weights())
+            if len(inbound_edges[parent_layer]) == 1:
+                node_edge_to_tensor[(parent_layer, current_node)] = layer(
+                    node_edge_to_tensor[(inbound_edges[parent_layer][0], parent_layer)])
+            else:
+                node_edge_to_tensor[(parent_layer, current_node)] = layer(
+                    [node_edge_to_tensor[(n, parent_layer)] for n in inbound_edges[parent_layer]])
+
+            # set weights
+            layer.set_weights(nodes[parent_layer].get_weights())
 
     # if output edges of node have different segment
     # perform slice assignment and store relevant tensor
@@ -737,12 +824,12 @@ def process_alternate_input_node(current_node, node_edge_to_tensor,
 
     shape = nodes[parent_layer].output_shape
     if isinstance(shape, list):
-        assert(len(shape)==1)
+        assert(len(shape) == 1)
         shape = shape[0]
 
     alt_input_intout_output = tf.keras.Input(
         shape=shape[1:],
-        name=name)  
+        name=name)
 
     input_tensors.append(alt_input_intout_output)
     # add info sufficient for preparing inputs
@@ -767,7 +854,8 @@ def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
     # generate 2 models: first returns intermediate outputs for unperturbed inputs,
     # second is the "FastISM" model that runs on perturbed inputs
 
-    nodes, edges, inbound_edges, _, output_nodes = flatten_model.get_flattened_graph(model)
+    nodes, edges, inbound_edges, _, output_nodes = flatten_model.get_flattened_graph(
+        model)
 
     # break model into segments
     node_to_segment, stop_segment_idxs, alternate_input_segment_idxs = segment_model(
