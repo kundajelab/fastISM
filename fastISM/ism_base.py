@@ -56,13 +56,18 @@ class ISMBase():
 
         # set up ism output tensors by intialising to unperturbed_output
         if self.num_outputs == 1:
+            # take off GPU
+            unperturbed_output = unperturbed_output.numpy()
+
             # batch_size x num_perturb x output_dim
-            ism_outputs = np.repeat(np.expand_dims(unperturbed_output.numpy(), 1),
+            ism_outputs = np.repeat(np.expand_dims(unperturbed_output, 1),
                                     len(self.change_ranges), 1)
         else:
+            unperturbed_output = [x.numpy() for x in unperturbed_output]
+
             ism_outputs = []
             for j in range(self.num_outputs):
-                ism_outputs.append(np.repeat(np.expand_dims(unperturbed_output[j].numpy(), 1),
+                ism_outputs.append(np.repeat(np.expand_dims(unperturbed_output[j], 1),
                                              len(self.change_ranges), 1))
 
         for i, change_range in enumerate(self.change_ranges):
