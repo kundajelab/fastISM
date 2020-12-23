@@ -69,10 +69,12 @@ class ISMBase():
             # only run models on seqs that are being perturbed
             if self.num_inputs == 1:
                 idxs_to_mutate = tf.squeeze(tf.where(tf.logical_not(tf.reduce_all(
-                    inp_batch[:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1, 2)))))
+                    inp_batch[:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1, 2)))),
+                    axis=1)
             else:
                 idxs_to_mutate = tf.squeeze(tf.where(tf.logical_not(tf.reduce_all(
-                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1, 2)))))
+                    inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1, 2)))),
+                    axis=1)
 
             # output only on idxs_to_mutate
             ism_ith_output = self.get_ith_output(inp_batch, i, idxs_to_mutate)
