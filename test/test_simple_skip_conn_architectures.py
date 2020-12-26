@@ -106,6 +106,29 @@ class TestSimpleSkipConnArchitectures(unittest.TestCase):
 
         self.assertTrue(fast_ism_model.test_correctness())
 
+    def test_two_conv_addstop_stop_skip_fc(self):
+        # inp --> C -> Add -> D --> Add -> y
+        #     |-> C -> ^ ---> D -----^
+        # skip connection between stop segments
+        inp = tf.keras.Input((100, 4))
+        x1 = tf.keras.layers.Conv1D(20, 3)(inp)
+        x2 = tf.keras.layers.Conv1D(20, 3)(inp)
+        
+        x = tf.keras.layers.Add()([x1, x2])        
+        x = tf.keras.layers.Flatten()(x)
+        x = tf.keras.layers.Dense(10)(x)
+        
+        x2 = tf.keras.layers.Flatten()(x2)
+        x2 = tf.keras.layers.Dense(10)(x2)
+
+        x = tf.keras.layers.Add()([x, x2])
+
+        model = tf.keras.Model(inputs=inp, outputs=x)
+
+        fast_ism_model = fastISM.FastISM(
+            model, test_correctness=False)
+
+        self.assertTrue(fast_ism_model.test_correctness())
 
 if __name__ == '__main__':
     unittest.main()

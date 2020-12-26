@@ -85,7 +85,7 @@ class SliceAssign(tf.keras.layers.Layer):
         """
 
         a, b, i = inputs
-        
+
         # i<0
         def case1():
             return tf.concat([b[:, -i[0]:],
@@ -599,8 +599,8 @@ def generate_intermediate_output_subgraph(current_node, node_to_tensor, output_t
 
 
 def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs,
-                            node_to_segment, alternate_input_segment_idxs,
-                            segments):
+                            node_to_segment, stop_segment_idxs,
+                            alternate_input_segment_idxs, segments):
     inputs = ["TENSOR/{}".format(i.name) for i in model.inputs]
     assert(all([i in nodes for i in inputs]))
 
@@ -623,6 +623,7 @@ def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs,
             generate_fast_ism_subgraph(output_node, node_edge_to_tensor,
                                        input_tensors, input_specs, nodes,
                                        edges, inbound_edges, node_to_segment,
+                                       stop_segment_idxs,
                                        alternate_input_segment_idxs, segments)
 
     fast_ism_model = tf.keras.Model(inputs=input_tensors,
@@ -635,7 +636,8 @@ def generate_fast_ism_model(model, nodes, edges, inbound_edges, outputs,
 
 def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
                                input_specs, nodes, edges, inbound_edges,
-                               node_to_segment, alternate_input_segment_idxs, segments):
+                               node_to_segment, stop_segment_idxs,
+                               alternate_input_segment_idxs, segments):
     # nodes: mapping from Node name -> layer object of model if layer else None
     # weights are copied within this
 
@@ -702,6 +704,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
                                            node_edge_to_tensor, input_tensors,
                                            input_specs, nodes, edges,
                                            inbound_edges, node_to_segment,
+                                           stop_segment_idxs,
                                            alternate_input_segment_idxs,
                                            segments)
 
@@ -740,9 +743,13 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
             layer.set_weights(nodes[parent_layer].get_weights())
 
     # if output edges of node have different segment
+    # and both segments are not stop segments
     # perform slice assignment and store relevant tensor
     for next_layer_node in edges[current_node]:
-        if node_to_segment[current_node] != node_to_segment[next_layer_node]:
+        if (node_to_segment[current_node] != node_to_segment[next_layer_node]) and \
+            ((node_to_segment[current_node] not in stop_segment_idxs) or
+                (node_to_segment[next_layer_node] not in stop_segment_idxs)):
+
             cur_segment = segments[node_to_segment[current_node]]
 
             next_segment = segments[node_to_segment[next_layer_node]]
@@ -871,6 +878,6 @@ def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
 
     fast_ism_model, input_specs = generate_fast_ism_model(
         model, nodes, edges, inbound_edges, output_nodes, node_to_segment,
-        alternate_input_segment_idxs, segments)
+        stop_segment_idxs, alternate_input_segment_idxs, segments)
 
     return output_nodes, intout_model, intout_output_tensors, fast_ism_model, input_specs
