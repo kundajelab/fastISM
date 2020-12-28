@@ -6,13 +6,14 @@ import numpy as np
 
 
 class FastISM(ISMBase):
-    def __init__(self, model, seq_input_idx=0, change_ranges=None, test_correctness=True):
+    def __init__(self, model, seq_input_idx=0, change_ranges=None,
+                 early_stop_layers=None, test_correctness=True):
         super().__init__(model, seq_input_idx, change_ranges)
 
         self.output_nodes, self.intermediate_output_model, self.intout_output_tensors, \
             self.fast_ism_model, self.input_specs = generate_models(
                 self.model, self.seqlen, self.num_chars, self.seq_input_idx,
-                self.change_ranges)
+                self.change_ranges, early_stop_layers)
 
         self.intout_output_tensor_to_idx = {
             x: i for i, x in enumerate(self.intout_output_tensors)}
@@ -65,7 +66,8 @@ class FastISM(ISMBase):
         return inputs
 
     def get_ith_output(self, inp_batch, i, idxs_to_mutate):
-        fast_ism_inputs = self.prepare_ith_input(self.padded_inputs, i, idxs_to_mutate)
+        fast_ism_inputs = self.prepare_ith_input(
+            self.padded_inputs, i, idxs_to_mutate)
 
         return self.fast_ism_model(fast_ism_inputs, training=False)
 
@@ -80,10 +82,11 @@ class FastISM(ISMBase):
                 # slice
                 inputs.append(
                     tf.gather(padded_inputs[input_idx][:,
-                                             input_spec[1]['slices'][i][0]: input_spec[1]['slices'][i][1]],
-                                             idxs_to_mutate))
+                                                       input_spec[1]['slices'][i][0]: input_spec[1]['slices'][i][1]],
+                              idxs_to_mutate))
             elif input_spec[0] == "INTOUT_ALT":
-                inputs.append(tf.gather(padded_inputs[input_idx], idxs_to_mutate))
+                inputs.append(
+                    tf.gather(padded_inputs[input_idx], idxs_to_mutate))
             elif input_spec[0] == "OFFSET":
                 inputs.append(input_spec[1]['offsets'][i])
             else:
@@ -96,7 +99,7 @@ class FastISM(ISMBase):
         # padded inputs no longer required, take up GPU memory
         # if not deleted, have led to memory leaks
         del self.padded_inputs
-        
+
     def test_correctness(self, batch_size=10, replace_with=0, atol=1e-6):
         """
         Verify that outputs are correct by matching with Naive ISM. Running on small

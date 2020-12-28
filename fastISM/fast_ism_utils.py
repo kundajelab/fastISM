@@ -140,7 +140,7 @@ class GraphSegment():
 
 
 # perhaps convert these to a class so that nodes, edges don't have to be fed as input always
-def segment_model(model, nodes, edges, inbound_edges, seq_input_idx):
+def segment_model(model, nodes, edges, inbound_edges, seq_input_idx, early_stop_layers):
     # segment model into groups that can be run as a unit. Intermediate outputs after each group
     # should be captured for unperturbed inputs. Segmenting thus helps minimise number of intermediate
     # outputs that need to be captured
@@ -157,6 +157,15 @@ def segment_model(model, nodes, edges, inbound_edges, seq_input_idx):
     # process starting from sequence input
     node_to_segment, stop_segment_idxs, segment_idx = segment_subgraph(
         input_tensor, nodes, edges, inbound_edges, dict(), set(), 0, 0)
+
+    # in cases with a custom early stop layer/s, add downstream segments to stop_segments
+    if early_stop_layers is not None:
+        if not isinstance(early_stop_layers, list):
+            early_stop_layers = [early_stop_layers]
+
+        for early_stop_layer in early_stop_layers:
+            stop_segment_idxs = update_stop_segments(
+                "LAYER/{}".format(early_stop_layer), nodes, edges, node_to_segment, stop_segment_idxs)
 
     # process alternate inputs if any
     alternate_input_segment_idxs = set()
@@ -277,6 +286,18 @@ def label_stop_descendants(current_node, nodes, edges, node_to_segment, segment_
     return node_to_segment
 
 
+def update_stop_segments(current_node, nodes, edges, node_to_segment, stop_segment_idxs):
+    # add all segments of nodes including and downstream of current_node
+    # to stop_segment_idxs
+    stop_segment_idxs.add(node_to_segment[current_node])
+
+    for node in edges[current_node]:
+        stop_segment_idxs = update_stop_segments(
+            node, nodes, edges, node_to_segment, stop_segment_idxs)
+
+    return stop_segment_idxs
+
+
 def label_alternate_input_segment_idxs(current_node, nodes, edges, node_to_segment,
                                        stop_segment_idxs, alternate_input_segment_idxs,
                                        segment_idx):
@@ -303,10 +324,12 @@ def label_alternate_input_segment_idxs(current_node, nodes, edges, node_to_segme
 
 
 def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
-                                  node_to_segment, input_seqlen, input_filters,
+                                  node_to_segment, stop_segment_idxs,
+                                  input_seqlen, input_filters,
                                   input_change_ranges, seq_input_idx):
     """
-    for each segment, given input change range compute (ChangeRangesBase.forward_compose):
+    for each segment, given input change range compute 
+    (ChangeRangesBase.forward_compose):
         - input range of intermediate output required
         - offsets for input tensor wrt intermediate output
         - output seqlen
@@ -315,6 +338,10 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
 
     Starts only from sequence input that is changed. Does not deal with alternate
     inputs.
+
+    Forward propagation through network one segment at a time till a segment in
+    stop_segments_idxs is hit. Computes the change ranges for each segment and 
+    propagates to the next segment.
     """
 
     # starting sequence input and compute change ranges
@@ -345,127 +372,142 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
     while segments_to_process:
         cur_segment_to_process, cur_segment_tensor = segments_to_process.pop(0)
 
+        # inbound nodes that do not belong to stop_segments
+        # this is because stop segments are not processed further
+        non_stop_segment_inbound = [edge for edge in
+                                    inbound_edges[cur_segment_tensor] if
+                                    edge not in node_to_segment or  # for InputLayers
+                                    node_to_segment[edge]
+                                    not in stop_segment_idxs]
+
+        # only a node in stop_segment_idxs can have an inbound node that belongs
+        # to stop_segment_idxs
+        if len(non_stop_segment_inbound) != len(inbound_edges[cur_segment_tensor]):
+            assert(node_to_segment[cur_segment_tensor] in stop_segment_idxs)
+
         if len(segments_to_process_input_seqlens[cur_segment_to_process]) != \
-                len(inbound_edges[cur_segment_tensor]):
+                len(non_stop_segment_inbound):
             # should not be greater in any case
             assert(len(segments_to_process_input_seqlens[cur_segment_to_process]) <
-                   len(inbound_edges[cur_segment_tensor]))
+                   len(non_stop_segment_inbound))
             # hold off and wait till other input segments are populated
             assert(len(segments_to_process) > 0)
 
-        # if node marks beginning of dense/flatten/reshape layers, say
-        elif nodes[cur_segment_tensor].__class__.__name__ in STOP_LAYERS:
-            if len(segments_to_process_input_seqlens[cur_segment_to_process]) > 1:
-                raise NotImplementedError("This Block layer takes in multiple \
-                     inputs which is not currently supported")
-            cur_input_seqlen = segments_to_process_input_seqlens[cur_segment_to_process][0]
-            cur_input_change_ranges = segments_to_process_input_change_ranges[
-                cur_segment_to_process][0]
-
-            segment = GraphSegment(cur_segment_tensor, cur_input_seqlen,
-                                   cur_input_change_ranges)
-            segment.update_forward_output([(0, cur_input_seqlen)] *
-                                          # entire input range
-                                          len(cur_input_change_ranges),
-                                          (0, 0),  # no padding
-                                          None,  # output seqlen NA
-                                          None)  # affected range is the whole thing, NA)
-            segment.update_num_filters(None)  # output filters NA
-            segments[cur_segment_to_process] = segment
-
-        # process current segment
         else:
-            change_range_objects = []
-
             # resolve multiple input_change_ranges
             if len(set(segments_to_process_input_seqlens[cur_segment_to_process])) != 1:
                 not_supported_error(
                     "This multi-input layer takes in inputs of different length")
             if len(set(segments_to_process_input_filters[cur_segment_to_process])) != 1:
                 not_supported_error("This multi-input layer takes in \
-                                          inputs of different filters")
-            cur_input_seqlen = segments_to_process_input_seqlens[cur_segment_to_process][0]
-            segment_filters = segments_to_process_input_filters[cur_segment_to_process][0]
+                                        inputs of different filters")
 
-            # for change ranges, take the largest range over all input ranges
-            # e.g. [ [(1,3), (4,6)], [(2,4), (4,5)] ] -> [(1,4), (3,6)]
-            # all should have the same length
-            cur_input_change_ranges = resolve_multi_input_change_ranges(
-                segments_to_process_input_change_ranges[cur_segment_to_process])
+            # if node marks beginning of dense/flatten/reshape layers, say
+            # or belongs to segment in stop_segment_idxs
+            if node_to_segment[cur_segment_tensor] in stop_segment_idxs:
+                cur_input_seqlen = segments_to_process_input_seqlens[cur_segment_to_process][0]
+                cur_input_change_ranges = segments_to_process_input_change_ranges[
+                    cur_segment_to_process][0]
 
-            segment = GraphSegment(cur_segment_tensor, cur_input_seqlen,
-                                   cur_input_change_ranges)
+                segment = GraphSegment(cur_segment_tensor, cur_input_seqlen,
+                                       cur_input_change_ranges)
+                segment.update_forward_output([(0, cur_input_seqlen)] *
+                                              # entire input range
+                                              len(cur_input_change_ranges),
+                                              (0, 0),  # no padding
+                                              None,  # output seqlen NA
+                                              None)  # affected range is the whole thing, NA
+                segment.update_num_filters(None)  # output filters NA
+                segments[cur_segment_to_process] = segment
 
-            while True:
-                assert(node_to_segment[cur_segment_tensor]
-                       == cur_segment_to_process)
+            # process current segment
+            else:
+                change_range_objects = []
 
-                if flatten_model.node_is_layer(cur_segment_tensor):
-                    layer_name = nodes[cur_segment_tensor].__class__.__name__
+                # resolve multiple input_change_ranges
+                cur_input_seqlen = segments_to_process_input_seqlens[cur_segment_to_process][0]
+                segment_filters = segments_to_process_input_filters[cur_segment_to_process][0]
 
-                    if layer_name in LOCAL_LAYERS:
-                        if layer_name == 'Conv1D':
-                            change_range_objects.append(Conv1DChangeRanges(
-                                nodes[cur_segment_tensor].get_config()))
+                # for change ranges, take the largest range over all input ranges
+                # e.g. [ [(1,3), (4,6)], [(2,4), (4,5)] ] -> [(1,4), (3,6)]
+                # all should have the same length
+                cur_input_change_ranges = resolve_multi_input_change_ranges(
+                    segments_to_process_input_change_ranges[cur_segment_to_process])
 
-                            # number of filters updated by Conv1D layer
-                            segment_filters = nodes[cur_segment_tensor].get_config()[
-                                'filters']
+                segment = GraphSegment(cur_segment_tensor, cur_input_seqlen,
+                                       cur_input_change_ranges)
 
-                        elif layer_name == 'MaxPooling1D':
-                            change_range_objects.append(MaxPooling1DChangeRanges(
-                                nodes[cur_segment_tensor].get_config()))
+                while True:
+                    assert(node_to_segment[cur_segment_tensor]
+                           == cur_segment_to_process)
 
-                        elif layer_name == 'Cropping1D':
-                            change_range_objects.append(Cropping1DChangeRanges(
-                                nodes[cur_segment_tensor].get_config()))
+                    if flatten_model.node_is_layer(cur_segment_tensor):
+                        layer_name = nodes[cur_segment_tensor].__class__.__name__
 
-                    elif (layer_name not in SEE_THROUGH_LAYERS) and \
-                            (layer_name not in AGGREGATE_LAYERS):
-                        raise not_supported_error(
-                            "Layer \"{}\"".format(layer_name))
+                        if layer_name in LOCAL_LAYERS:
+                            if layer_name == 'Conv1D':
+                                change_range_objects.append(Conv1DChangeRanges(
+                                    nodes[cur_segment_tensor].get_config()))
 
-                if len(edges[cur_segment_tensor]) != 1 or \
-                        node_to_segment[edges[cur_segment_tensor][0]] != cur_segment_to_process:
-                    # if 0 or >1 out-edges, implies end of this segment
-                    # >1 implies start of another segment,
-                    # or if next segment does not belong to this segment
+                                # number of filters updated by Conv1D layer
+                                segment_filters = nodes[cur_segment_tensor].get_config()[
+                                    'filters']
 
-                    # process this segment
-                    segment.update_forward_output(*ChangeRangesBase.forward_compose(
-                        change_range_objects, cur_input_seqlen, cur_input_change_ranges))
-                    segment.update_num_filters(segment_filters)
-                    segments[cur_segment_to_process] = segment
+                            elif layer_name == 'MaxPooling1D':
+                                change_range_objects.append(MaxPooling1DChangeRanges(
+                                    nodes[cur_segment_tensor].get_config()))
 
-                    # add next segments to list
-                    for node in edges[cur_segment_tensor]:
-                        # add start nodes to segments_to_process
-                        next_segment = node_to_segment[node]
+                            elif layer_name == 'Cropping1D':
+                                change_range_objects.append(Cropping1DChangeRanges(
+                                    nodes[cur_segment_tensor].get_config()))
 
-                        # do not add if already present
-                        if (next_segment, node) not in segments_to_process:
-                            segments_to_process.append((next_segment, node))
+                        elif (layer_name not in SEE_THROUGH_LAYERS) and \
+                                (layer_name not in AGGREGATE_LAYERS):
+                            raise not_supported_error(
+                                "Layer \"{}\"".format(layer_name))
 
-                        # but add this info
-                        segments_to_process_input_seqlens[next_segment].append(
-                            segment.output_seqlen)
-                        segments_to_process_input_filters[next_segment].append(
-                            segment_filters)
-                        segments_to_process_input_change_ranges[next_segment].append(
-                            segment.output_perturbed_ranges)
+                    if len(edges[cur_segment_tensor]) != 1 or \
+                            node_to_segment[edges[cur_segment_tensor][0]] != cur_segment_to_process:
+                        # if 0 or >1 out-edges, implies end of this segment
+                        # >1 implies start of another segment,
+                        # or if next segment does not belong to this segment
 
-                    # break from while True loop
-                    break
+                        # process this segment
+                        segment.update_forward_output(*ChangeRangesBase.forward_compose(
+                            change_range_objects, cur_input_seqlen, cur_input_change_ranges))
+                        segment.update_num_filters(segment_filters)
+                        segments[cur_segment_to_process] = segment
 
-                else:
-                    cur_segment_tensor = edges[cur_segment_tensor][0]
+                        # add next segments to list
+                        for node in edges[cur_segment_tensor]:
+                            # add start nodes to segments_to_process
+                            next_segment = node_to_segment[node]
+
+                            # do not add if already present
+                            if (next_segment, node) not in segments_to_process:
+                                segments_to_process.append(
+                                    (next_segment, node))
+
+                            # but add this info
+                            segments_to_process_input_seqlens[next_segment].append(
+                                segment.output_seqlen)
+                            segments_to_process_input_filters[next_segment].append(
+                                segment_filters)
+                            segments_to_process_input_change_ranges[next_segment].append(
+                                segment.output_perturbed_ranges)
+
+                        # break from while True loop
+                        break
+
+                    else:
+                        cur_segment_tensor = edges[cur_segment_tensor][0]
 
     return segments
 
 
 def resolve_multi_input_change_ranges(input_change_ranges_list):
     """For AGGREGATE_LAYERS such as Add, the different inputs have different
-    change ranges. For the change ranges, take the largest range over all 
+    change ranges. For the change ranges, take the largest range over all
     input ranges:
 
     e.g. [ [(1,3), (4,6)], [(2,4), (4,5)] ] -> [(1,4), (3,6)]
@@ -501,7 +543,8 @@ def resolve_multi_input_change_ranges(input_change_ranges_list):
 
 
 def generate_intermediate_output_model(model, nodes, edges, inbound_edges,
-                                       outputs, node_to_segment):
+                                       outputs, node_to_segment,
+                                       stop_segment_idxs):
     inputs = ["TENSOR/{}".format(i.name) for i in model.inputs]
     assert(all([i in nodes for i in inputs]))
 
@@ -515,8 +558,14 @@ def generate_intermediate_output_model(model, nodes, edges, inbound_edges,
     output_tensor_names = []
     for output_node in outputs:
         # reverse graph traversal
-        node_to_tensor, output_tensor_names = generate_intermediate_output_subgraph(
-            output_node, node_to_tensor, output_tensor_names, nodes, edges, inbound_edges, node_to_segment)
+        node_to_tensor, output_tensor_names = \
+            generate_intermediate_output_subgraph(output_node,
+                                                  node_to_tensor,
+                                                  output_tensor_names,
+                                                  nodes, edges,
+                                                  inbound_edges,
+                                                  node_to_segment,
+                                                  stop_segment_idxs)
 
         if output_node not in output_tensor_names:
             output_tensor_names.append(output_node)
@@ -529,7 +578,10 @@ def generate_intermediate_output_model(model, nodes, edges, inbound_edges,
     return intermediate_output_model, output_tensor_names
 
 
-def generate_intermediate_output_subgraph(current_node, node_to_tensor, output_tensor_names, nodes, edges, inbound_edges, node_to_segment):
+def generate_intermediate_output_subgraph(current_node, node_to_tensor,
+                                          output_tensor_names, nodes, edges,
+                                          inbound_edges, node_to_segment,
+                                          stop_segment_idxs):
     # nodes: mapping from Node name -> layer object of model if layer else None
     # weights are copied within this
 
@@ -568,8 +620,14 @@ def generate_intermediate_output_subgraph(current_node, node_to_tensor, output_t
 
     else:
         for parent_layer_input in inbound_edges[parent_layer]:
-            node_to_tensor, output_tensor_names = generate_intermediate_output_subgraph(
-                parent_layer_input, node_to_tensor, output_tensor_names, nodes, edges, inbound_edges, node_to_segment)
+            node_to_tensor, output_tensor_names = \
+                generate_intermediate_output_subgraph(parent_layer_input,
+                                                      node_to_tensor,
+                                                      output_tensor_names,
+                                                      nodes, edges,
+                                                      inbound_edges,
+                                                      node_to_segment,
+                                                      stop_segment_idxs)
 
         # make the layer
         layer = nodes[parent_layer].__class__(**config)
@@ -585,15 +643,19 @@ def generate_intermediate_output_subgraph(current_node, node_to_tensor, output_t
         layer.set_weights(nodes[parent_layer].get_weights())
 
     # determine if output edges of node have different segment
+    # and both are not in stop_segment_idxs (no need to cache output at junction
+    # of 2 segments both of which belong to stop_segment_idxs)
     # if so, then add to output_tensor_names
     # this is trivially true if > 1 outbound edges (since segment_subgraph
     # would change segment_idx for tensor with multiple edges), but nonetheless
     # this is not explicitly assumed
     for n in edges[current_node]:
-        if node_to_segment[current_node] != node_to_segment[n]:
-            if current_node not in output_tensor_names:
-                output_tensor_names.append(current_node)
-                break
+        if node_to_segment[current_node] != node_to_segment[n] and \
+            (node_to_segment[current_node] not in stop_segment_idxs or
+             node_to_segment[n] not in stop_segment_idxs) and \
+                current_node not in output_tensor_names:
+            output_tensor_names.append(current_node)
+            break
 
     return node_to_tensor, output_tensor_names
 
@@ -711,16 +773,17 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
         # make the layer
         layer_name = nodes[parent_layer].__class__.__name__
 
-        if layer_name == 'Cropping1D':
+        if layer_name == 'Cropping1D' and node_to_segment[parent_layer] not in stop_segment_idxs:
             # do nothing, forward tensor
-            node_edge_to_tensor[(parent_layer, current_node)] = \
-                node_edge_to_tensor[(
-                    inbound_edges[parent_layer][0], parent_layer)]
+            node_edge_to_tensor[(parent_layer, current_node)] = node_edge_to_tensor[(
+                inbound_edges[parent_layer][0], parent_layer)]
 
         else:
             if layer_name == 'Conv1D':
-                # Padding will be added externally
-                config['padding'] = 'valid'
+                # Padding will be added externally (unless within stop_segment_idx)
+                if node_to_segment[parent_layer] not in stop_segment_idxs:
+                    config['padding'] = 'valid'
+
                 layer = nodes[parent_layer].__class__(**config)
 
             elif layer_name == 'Flatten':
@@ -732,6 +795,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
             else:
                 layer = nodes[parent_layer].__class__(**config)
 
+            # call layer
             if len(inbound_edges[parent_layer]) == 1:
                 node_edge_to_tensor[(parent_layer, current_node)] = layer(
                     node_edge_to_tensor[(inbound_edges[parent_layer][0], parent_layer)])
@@ -844,13 +908,13 @@ def process_alternate_input_node(current_node, node_edge_to_tensor,
         # not explicitly checking if downstream of stop layer since that is
         # enforced by segment_model
         if node_to_segment[next_layer_node] not in alternate_input_segment_idxs:
-            node_edge_to_tensor[(current_node, next_layer_node)] = \
-                alt_input_intout_output
+            node_edge_to_tensor[(current_node, next_layer_node)
+                                ] = alt_input_intout_output
 
     return node_edge_to_tensor, input_tensors, input_specs
 
 
-def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
+def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges, early_stop_layers=None):
     # generate 2 models: first returns intermediate outputs for unperturbed inputs,
     # second is the "FastISM" model that runs on perturbed inputs
 
@@ -859,22 +923,42 @@ def generate_models(model, seqlen, num_chars, seq_input_idx, change_ranges):
 
     # break model into segments
     node_to_segment, stop_segment_idxs, alternate_input_segment_idxs = segment_model(
-        model, nodes, edges, inbound_edges, seq_input_idx)
+        model, nodes, edges, inbound_edges, seq_input_idx, early_stop_layers)
+
+    # stop_segment_idxs contains all the segments beyond which full computation
+    # takes place, i.e. computations are equivalent to naive implementation.
+    # By default segments including and downstream of those containing
+    # STOP_LAYERS are contained in stop_segment_idxs. However, if custom
+    # early_stop_layers are defined, segments including and downstream of those
+    # are also added to stop_segment_idxs and are equivalent to naive
+    # implementation. Intermediate output at junctions between two segments both
+    # in stop_segment_idxs are not stored as they are not required
 
     # for each segment, compute metadata used for stitching together outputs
     # dict: segment_idx -> GraphSegment object
-    segments = compute_segment_change_ranges(model, nodes, edges, inbound_edges, node_to_segment,
-                                             seqlen, num_chars, change_ranges, seq_input_idx)
+    segments = compute_segment_change_ranges(model, nodes, edges,
+                                             inbound_edges,
+                                             node_to_segment,
+                                             stop_segment_idxs,
+                                             seqlen, num_chars,
+                                             change_ranges,
+                                             seq_input_idx)
     # TODO: check if this makes sense
     # compute_segment_change_ranges does not process segments belonging to
     # alternate (non-sequence) inputs
-    assert(len(segments) == len(set(node_to_segment.values())) -
-           len(alternate_input_segment_idxs))
+    # assert(len(segments) == len(set(node_to_segment.values())) -
+    #        len(alternate_input_segment_idxs))
+
+    # weaker version. Would not have an entry for segments in stop_segment_idxs
+    # that are only connected to other segments in stop_segment_idxs
+    assert(len(segments) >= len(set(node_to_segment.values())) -
+           len(alternate_input_segment_idxs) - len(stop_segment_idxs) + 1)
 
     # augment model to return a model that returns intermediate outputs
     # returns all tensors that occur at segment change-points
     intout_model, intout_output_tensors = generate_intermediate_output_model(
-        model, nodes, edges, inbound_edges, output_nodes, node_to_segment)
+        model, nodes, edges, inbound_edges, output_nodes, node_to_segment,
+        stop_segment_idxs)
 
     fast_ism_model, input_specs = generate_fast_ism_model(
         model, nodes, edges, inbound_edges, output_nodes, node_to_segment,
