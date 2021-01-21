@@ -271,7 +271,8 @@ class Cropping1DChangeRanges(ChangeRangesBase):
         # push left if within right cropping
         right_edge = (input_seqlen-self.cropping[1])
         input_range_corrected = [(x, y) if y < right_edge else
-                                 (right_edge - (y-x), right_edge)
+                                 (max(right_edge - (y-x), self.cropping[0]), 
+                                 right_edge)
                                  for x, y in input_range_corrected]
 
         output_affected_ranges = [(x-self.cropping[0], y-self.cropping[0]) for
