@@ -630,7 +630,7 @@ def generate_intermediate_output_subgraph(current_node, node_to_tensor,
                                                       stop_segment_idxs)
 
         # make the layer
-        layer = nodes[parent_layer].__class__(**config)
+        layer = nodes[parent_layer].__class__.from_config(config)
 
         if len(inbound_edges[parent_layer]) == 1:
             node_to_tensor[current_node] = layer(
@@ -788,7 +788,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
                 if node_to_segment[parent_layer] not in stop_segment_idxs:
                     config['padding'] = 'valid'
 
-                layer = nodes[parent_layer].__class__(**config)
+                layer = nodes[parent_layer].__class__.from_config(config)
 
             elif layer_name == 'Flatten':
                 # this is necessary as SliceAssign loses dimension data
@@ -797,7 +797,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
                 layer = tf.keras.layers.Reshape(
                     nodes[parent_layer].output_shape[1:])
             else:
-                layer = nodes[parent_layer].__class__(**config)
+                layer = nodes[parent_layer].__class__.from_config(config)
 
             # call layer
             if len(inbound_edges[parent_layer]) == 1:
