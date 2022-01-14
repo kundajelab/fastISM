@@ -121,7 +121,7 @@ def get_flattened_graph(model, is_subgraph=False):
         # assert(len(layer.inbound_nodes) == 1)
 
         layer_input_tensors = [x.name for x in nest.flatten(
-            layer.inbound_nodes[0].input_tensors)]
+            layer.inbound_nodes[0].call_args)] #input_tensors)]
         # if inbound node comes from a subgraph, it will start with "subgraph_name/"
         # if it comes from subgraph within subgraph, it will start with "subgraph_name1/subgraph_name2/"
         # but "nodes" do not have subgraph_name in them
