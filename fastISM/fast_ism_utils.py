@@ -636,8 +636,12 @@ def generate_intermediate_output_subgraph(current_node, node_to_tensor,
             node_to_tensor[current_node] = layer(
                 node_to_tensor[inbound_edges[parent_layer][0]])
         else:
-            node_to_tensor[current_node] = layer(
-                [node_to_tensor[n] for n in inbound_edges[parent_layer]])
+            inps = [node_to_tensor[n] for n in inbound_edges[parent_layer]]
+
+            if layer.__class__.__name__ == 'MultiHeadAttention': 
+                node_to_tensor[current_node] = layer(*inps)
+            else:
+                node_to_tensor[current_node] = layer(inps)
 
         # set weights
         layer.set_weights(nodes[parent_layer].get_weights())
@@ -800,8 +804,12 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
                 node_edge_to_tensor[(parent_layer, current_node)] = layer(
                     node_edge_to_tensor[(inbound_edges[parent_layer][0], parent_layer)])
             else:
-                node_edge_to_tensor[(parent_layer, current_node)] = layer(
-                    [node_edge_to_tensor[(n, parent_layer)] for n in inbound_edges[parent_layer]])
+                inps = [node_edge_to_tensor[(n, parent_layer)] for n in inbound_edges[parent_layer]]
+                
+                if layer_name == 'MultiHeadAttention':
+                    node_edge_to_tensor[(parent_layer, current_node)] = layer(*inps)
+                else:
+                    node_edge_to_tensor[(parent_layer, current_node)] = layer(inps)
 
             # set weights
             layer.set_weights(nodes[parent_layer].get_weights())
