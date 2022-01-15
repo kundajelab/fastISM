@@ -21,6 +21,22 @@ class TestSimpleSkipConnArchitectures(unittest.TestCase):
 
         self.assertTrue(fast_ism_model.test_correctness())
 
+    def test_conv_self_add_two_fc(self):
+        # inp -> C -> C-> Add -> D -> y
+        #             |____^
+        inp = tf.keras.Input((100, 4))
+        x = tf.keras.layers.Conv1D(20, 3)(inp)
+        x = tf.keras.layers.Conv1D(20, 3, padding='same')(x)
+        x = tf.keras.layers.Add()([x, x])
+        x = tf.keras.layers.Flatten()(x)
+        y = tf.keras.layers.Dense(1)(x)
+        model = tf.keras.Model(inputs=inp, outputs=y)
+
+        fast_ism_model = fastISM.FastISM(
+            model, test_correctness=False)
+
+        self.assertTrue(fast_ism_model.test_correctness())
+
     def test_conv_add_three_fc(self):
         #          ^-- C---|
         # inp -> C ->  C-> Add -> D -> y

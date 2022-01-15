@@ -817,7 +817,7 @@ def generate_fast_ism_subgraph(current_node, node_edge_to_tensor, input_tensors,
     # if output edges of node have different segment
     # and both segments are not stop segments
     # perform slice assignment and store relevant tensor
-    for next_layer_node in edges[current_node]:
+    for next_layer_node in set(edges[current_node]):
         if (node_to_segment[current_node] != node_to_segment[next_layer_node]) and \
             ((node_to_segment[current_node] not in stop_segment_idxs) or
                 (node_to_segment[next_layer_node] not in stop_segment_idxs)):
