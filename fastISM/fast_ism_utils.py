@@ -235,7 +235,12 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges,
             # enforce that if a segment has a conv layer, it is always at the beginning
             # by doing this, pre-conv intermediate outputs will always be captured and
             # padding them would become a one-time operation
-            segment_idx += 1
+
+            # however, if a segment has no previous convs (e.g. only SEE_THROUGH_LAYERS) 
+            # then don't need to start a new segment 
+            # segment_idx==0 is special case for right after input sequence
+            if num_convs_in_cur_segment > 0 or segment_idx==0:
+                segment_idx += 1
 
             node_to_segment[current_node] = segment_idx
             return segment_subgraph(edges[current_node][0], nodes, edges, inbound_edges, node_to_segment, stop_segment_idxs, segment_idx, 1)
