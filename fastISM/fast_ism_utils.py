@@ -237,9 +237,11 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges,
             # padding them would become a one-time operation
 
             # however, if a segment has no previous convs (e.g. only SEE_THROUGH_LAYERS) 
-            # then don't need to start a new segment 
+            # and has valid padding, then don't need to start a new segment 
             # segment_idx==0 is special case for right after input sequence
-            if num_convs_in_cur_segment > 0 or segment_idx==0:
+            # This corner case was discovered when trying to optimize for the Enformer
+            # model, which has blocks with batchnorm -> GELU -> width 1 Convs
+            if num_convs_in_cur_segment > 0 or segment_idx==0 or nodes[current_node].get_config()['padding'] != 'valid':
                 segment_idx += 1
 
             node_to_segment[current_node] = segment_idx
