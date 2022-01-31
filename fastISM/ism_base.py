@@ -81,15 +81,17 @@ class ISMBase():
                     inp_batch[self.seq_input_idx][:, change_range[0]:change_range[1]] == self.perturbation[0], axis=(1, 2)))),
                     axis=1)
 
-            # output only on idxs_to_mutate
-            ism_ith_output = self.get_ith_output(inp_batch, i, idxs_to_mutate)
+            num_to_mutate = idxs_to_mutate.shape[0] 
+            if num_to_mutate > 0:
+                # output only on idxs_to_mutate
+                ism_ith_output = self.get_ith_output(inp_batch, i, idxs_to_mutate)
 
-            if self.num_outputs == 1:
-                ism_outputs[idxs_to_mutate, i] = ism_ith_output
-            else:
-                for j in range(self.num_outputs):
-                    ism_outputs[j][idxs_to_mutate,
-                                   i] = ism_ith_output[j].numpy()
+                if self.num_outputs == 1:
+                    ism_outputs[idxs_to_mutate, i] = ism_ith_output
+                else:
+                    for j in range(self.num_outputs):
+                        ism_outputs[j][idxs_to_mutate,
+                                    i] = ism_ith_output[j].numpy()
 
         # cleanup tensors that have been used
         self.cleanup()
