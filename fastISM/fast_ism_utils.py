@@ -39,8 +39,11 @@ AGGREGATE_LAYERS = {
 # layers at which output at ith position depends on a window around the ith position
 LOCAL_LAYERS = {
     'Conv1D',
-    'MaxPooling1D',
     'Cropping1D'
+}
+POOLING_LAYERS = {
+    'MaxPooling1D',
+    'AveragePooling1D'
 }
 
 # layers after which output at ith position depends on inputs at most or all positions
@@ -218,9 +221,9 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges,
             # recursively label all descendants (no more further segments)
             return label_stop_descendants(current_node, nodes, edges, node_to_segment, segment_idx), stop_segment_idxs, segment_idx+1
 
-        elif (layer_class == 'MaxPooling1D' or layer_class == 'Cropping1D') \
+        elif (layer_class in POOLING_LAYERS or layer_class == 'Cropping1D') \
                 and segment_idx == 0:
-            # special case for when a Cropping or MaxPooling1D layer is right
+            # special case for when a Cropping or Pooling1D layer is right
             # after input sequence before first Conv1D
             segment_idx += 1
             node_to_segment[current_node] = segment_idx
@@ -451,7 +454,7 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                     if flatten_model.node_is_layer(cur_segment_tensor):
                         layer_name = nodes[cur_segment_tensor].__class__.__name__
 
-                        if layer_name in LOCAL_LAYERS:
+                        if layer_name in LOCAL_LAYERS.union(POOLING_LAYERS):
                             if layer_name == 'Conv1D':
                                 change_range_objects.append(Conv1DChangeRanges(
                                     nodes[cur_segment_tensor].get_config()))
@@ -460,12 +463,12 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                                 segment_filters = nodes[cur_segment_tensor].get_config()[
                                     'filters']
 
-                            elif layer_name == 'MaxPooling1D':
-                                change_range_objects.append(Pooling1DChangeRanges(
-                                    nodes[cur_segment_tensor].get_config()))
-
                             elif layer_name == 'Cropping1D':
                                 change_range_objects.append(Cropping1DChangeRanges(
+                                    nodes[cur_segment_tensor].get_config()))
+
+                            elif layer_name in POOLING_LAYERS:
+                                change_range_objects.append(Pooling1DChangeRanges(
                                     nodes[cur_segment_tensor].get_config()))
 
                         elif (layer_name not in SEE_THROUGH_LAYERS) and \
