@@ -186,7 +186,7 @@ class Conv1DChangeRanges(ChangeRangesBase):
         return ranges
 
 
-class MaxPooling1DChangeRanges(ChangeRangesBase):
+class Pooling1DChangeRanges(ChangeRangesBase):
     def __init__(self, config):
         ChangeRangesBase.__init__(self, config)
         self.pool_size = get_int_if_tuple(self.config['pool_size'])

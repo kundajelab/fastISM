@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from .change_range import ChangeRangesBase, \
     Conv1DChangeRanges, \
-    MaxPooling1DChangeRanges, \
+    Pooling1DChangeRanges, \
     Cropping1DChangeRanges, \
     not_supported_error
 
@@ -461,7 +461,7 @@ def compute_segment_change_ranges(model, nodes, edges, inbound_edges,
                                     'filters']
 
                             elif layer_name == 'MaxPooling1D':
-                                change_range_objects.append(MaxPooling1DChangeRanges(
+                                change_range_objects.append(Pooling1DChangeRanges(
                                     nodes[cur_segment_tensor].get_config()))
 
                             elif layer_name == 'Cropping1D':
