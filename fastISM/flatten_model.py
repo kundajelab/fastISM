@@ -1,7 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.keras.layers import wrappers
 from tensorflow.python.keras.engine import sequential
-from tensorflow.python.keras.engine import functional
 from tensorflow.python.util import nest
 from collections import defaultdict
 import pydot
@@ -88,7 +87,7 @@ def get_flattened_graph(model, is_subgraph=False):
     for _, layer in enumerate(layers):
         layer_name = "LAYER/{}".format(layer.name)
 
-        if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
+        if isinstance(layer, tf.keras.Sequential) or layer.__class__.__name__=="Functional": 
             subgraph_nodes, subgraph_edges, subgraph_inbound_edges, \
                 subsubgraph_names, _ = get_flattened_graph(
                     layer, is_subgraph=True)
@@ -134,7 +133,7 @@ def get_flattened_graph(model, is_subgraph=False):
 
         assert(all([x in nodes for x in layer_input_tensors]))
 
-        if isinstance(layer, tf.keras.Sequential) or isinstance(layer, functional.Functional):
+        if isinstance(layer, tf.keras.Sequential) or layer.__class__.__name__=="Functional": 
             layer_inputlayer_names = [
                 "TENSOR/{}".format(x.name) for x in layer.inputs]
 
