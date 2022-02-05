@@ -285,13 +285,15 @@ def segment_subgraph(current_node, nodes, edges, inbound_edges,
             return node_to_segment, stop_segment_idxs, segment_idx
 
 
-def label_stop_descendants(current_node, nodes, edges, node_to_segment, segment_idx):
-    # label nodes downstream of STOP_LAYERS
-    node_to_segment[current_node] = segment_idx
 
-    for node in edges[current_node]:
-        node_to_segment = label_stop_descendants(
-            node, nodes, edges, node_to_segment, segment_idx)
+def label_stop_descendants(current_node, nodes, edges, node_to_segment, segment_idx):
+    if current_node not in node_to_segment or node_to_segment[current_node] != segment_idx:
+        # label nodes downstream of STOP_LAYERS
+        node_to_segment[current_node] = segment_idx
+
+        for node in edges[current_node]:
+            node_to_segment = label_stop_descendants(
+                node, nodes, edges, node_to_segment, segment_idx)
 
     return node_to_segment
 
