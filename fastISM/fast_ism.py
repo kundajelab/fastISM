@@ -64,12 +64,15 @@ class FastISM(ISMBase):
                     "{}: what is this input spec?".format(input_spec[0]))
 
         return inputs
+   
+    def run_model(self, inputs):
+        return self.fast_ism_model(inputs, training=False)
 
     def get_ith_output(self, inp_batch, i, idxs_to_mutate):
         fast_ism_inputs = self.prepare_ith_input(
             self.padded_inputs, i, idxs_to_mutate)
-
-        return self.fast_ism_model(fast_ism_inputs, training=False)
+        
+        return self.run_model(fast_ism_inputs)
 
     def prepare_ith_input(self, padded_inputs, i, idxs_to_mutate):
         num_to_mutate = idxs_to_mutate.shape[0]
@@ -88,7 +91,7 @@ class FastISM(ISMBase):
                 inputs.append(
                     tf.gather(padded_inputs[input_idx], idxs_to_mutate))
             elif input_spec[0] == "OFFSET":
-                inputs.append(input_spec[1]['offsets'][i])
+                inputs.append(tf.convert_to_tensor(input_spec[1]['offsets'][i], dtype=tf.int64))
             else:
                 raise ValueError(
                     "{}: what is this input spec?".format(input_spec[0]))

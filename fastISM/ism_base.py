@@ -114,6 +114,9 @@ class NaiveISM(ISMBase):
 
         return self.model(inp_batch, training=False)
 
+    def run_model(self, x):
+        return self.model(x, training=False)
+ 
     def get_ith_output(self, inp_batch, i, idxs_to_mutate):
         num_to_mutate = idxs_to_mutate.shape[0]
 
@@ -140,7 +143,7 @@ class NaiveISM(ISMBase):
                 else:
                     ism_input.append(tf.gather(inp_batch[j], idxs_to_mutate))
 
-        return self.model(ism_input, training=False)
+        return self.run_model(ism_input)
 
     def cleanup(self):
         pass
