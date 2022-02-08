@@ -18,7 +18,7 @@ from fastISM.fast_ism_utils import *
 # -- Project information -----------------------------------------------------
 
 project = 'fastISM'
-copyright = '2020, Kundaje Lab'
+copyright = '2022, Kundaje Lab'
 author = 'Surag Nair'
 
 # -- General configuration ---------------------------------------------------
@@ -52,10 +52,12 @@ rst_epilog = """
 .. |AGG| replace:: {}
 .. |LOCAL| replace:: {}
 .. |STOP| replace:: {}
+.. |POOL| replace:: {}
 """.format(format_set(SEE_THROUGH_LAYERS),
            format_set(AGGREGATE_LAYERS),
            format_set(LOCAL_LAYERS),
-           format_set(STOP_LAYERS))
+           format_set(STOP_LAYERS),
+           format_set(POOLING_LAYERS))
 
 
 # -- Options for HTML output -------------------------------------------------
