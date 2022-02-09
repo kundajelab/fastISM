@@ -67,7 +67,8 @@ True
 >>> np.allclose(fast_out, naive_out, atol=1e-6) 
 True # np.allclose is not symmetric
 ```
-**TODO** Add benchmarking utilities. Note on warm-up.
+
+See `notebooks/ISMBenchmark.ipynb` for benchmarking code that accounts for initial warm-up.
 
 ## Getting Help
 fastISM supports the most commonly used subset of Keras for biological sequence-based models. Occasionally, you may find that some of the layers used in your model are not supported by fastISM ([Supported Layers](https://fastism.readthedocs.io/en/latest/layers.html) section in Documentation). In a few cases, the fastISM model may fail correctness checks, indicating there are likely some issues in the fastISM code. In both such cases or any other bugs, feel free to reach out to the author by posting an [Issue](https://github.com/kundajelab/fastISM/issues) on GitHub along with your architecture, and we'll try to work out a solution!
