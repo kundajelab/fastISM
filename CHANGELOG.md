@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2022-02-08
+
+### Added
+- Cropping1D Support
+- User specified stop layers (undocumented)
+- Support for MultiHeadAttention layers
+
+### Changed
+- Refinements to segmenting
+- Segment starting with see-through layers followed by Conv1Ds with valid padding are kept in one segment
+- Layers are duplicated with `from_config` and `get_config`
+- Generalized pooling layers and added ability to add custom pooling layers
+
+### Fixed
+- Runs for batch size 1
+- Multi-input layers that had the same input twice (e.g. Add()([x,x])) would not run, fixed this
+- Support for newer versions of tensorflow which changed sub-models class from keras to tf.keras (in `flatten_model`)
+- Stop layers were traversed redundantly
+
 ## [0.4.0] - 2020-09-16
 
 ### Added
@@ -47,7 +66,8 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
-[unreleased]: https://github.com/kundajelab/fastISM/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/kundajelab/fastISM/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/kundajelab/fastISM/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/kundajelab/fastISM/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kundajelab/fastISM/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kundajelab/fastISM/compare/v0.1.3...v0.2.0
