@@ -1,6 +1,4 @@
 import tensorflow as tf
-from tensorflow.python.keras.layers import wrappers
-from tensorflow.python.keras.engine import sequential
 from tensorflow.python.util import nest
 from collections import defaultdict
 import pydot
