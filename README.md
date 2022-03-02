@@ -74,8 +74,10 @@ See `notebooks/ISMBenchmark.ipynb` for benchmarking code that accounts for initi
 fastISM supports the most commonly used subset of Keras for biological sequence-based models. Occasionally, you may find that some of the layers used in your model are not supported by fastISM. Refer to the [Supported Layers](https://fastism.readthedocs.io/en/latest/layers.html) section in Documentation for instructions on how to incorporate custom layers. In a few cases, the fastISM model may fail correctness checks, indicating there are likely some issues in the fastISM code. In such cases or any other bugs, feel free to reach out to the author by posting an [Issue](https://github.com/kundajelab/fastISM/issues) on GitHub along with your architecture, and we'll try to work out a solution!
 
 ## Citation
-fastISM: Performant *in-silico* saturation mutagenesis for convolutional neural networks; Surag Nair, Avanti Shrikumar, Anshul Kundaje (Bioinformatics 2022)
+fastISM: Performant *in-silico* saturation mutagenesis for convolutional neural networks; Surag Nair, Avanti Shrikumar*, Jacob Schreiber*, Anshul Kundaje (Bioinformatics 2022)
 [http://doi.org/10.1093/bioinformatics/btac135](http://doi.org/10.1093/bioinformatics/btac135). 
+
+\*equal contribtion 
 
 Preprint available on bioRxiv.
 
