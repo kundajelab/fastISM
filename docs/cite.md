@@ -1,4 +1,4 @@
 # Citation
 
-fastISM: Performant *in-silico* saturation mutagenesis for convolutional neural networks; Surag Nair, Avanti Shrikumar, Anshul Kundaje (bioRxiv 2020)
-[https://doi.org/10.1101/2020.10.13.337147](https://doi.org/10.1101/2020.10.13.337147)
+fastISM: Performant *in-silico* saturation mutagenesis for convolutional neural networks; Surag Nair, Avanti Shrikumar, Anshul Kundaje (Bioinformatics 2022)
+[http://doi.org/10.1093/bioinformatics/btac135](http://doi.org/10.1093/bioinformatics/btac135)
